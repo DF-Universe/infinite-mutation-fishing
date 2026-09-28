@@ -155,3 +155,13 @@ sign_in = on_command("签到", rule=enabled_in_group, force_whitespace=True)
 async def sign_in_command(bot: Bot, event: Event):
     from .runtime import handle_sign_in
     await run_action(handle_sign_in, bot, event)
+
+
+lineage = on_command("族谱", rule=enabled_in_group, force_whitespace=True)
+
+
+@lineage.handle()
+async def lineage_command(bot: Bot, event: Event):
+    from nonebot_plugin_alconna import UniMessage
+    from ..lineage import lineage_url
+    await UniMessage.text(f"本群的鱼族谱：\n{lineage_url(resolve_group_id(event))}").send()

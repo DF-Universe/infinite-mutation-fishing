@@ -1,0 +1,684 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>鱼的族谱</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lxgw-wenkai-screen-webfont@1.7.0/lxgwwenkaigbscreen.css">
+<style>
+:root {
+  --mist: #EEF4F1;
+  --ink: #304B50;
+  --teal: #268574;
+  --muted: #748781;
+  --gold: #A87921;
+  --deep: #1D3B40;
+  --soft: #F4F8F6;
+  --track: #DCE8E2;
+  --panel-w: 380px;
+  --font: "LXGW WenKai Screen", "LXGW WenKai", "Songti SC", "Noto Serif CJK SC", serif;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  font-family: var(--font);
+  color: var(--ink);
+  background: var(--mist);
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 3px solid var(--teal); outline-offset: 3px; border-radius: 12px; }
+
+.app { display: grid; grid-template-columns: minmax(0, 1fr) var(--panel-w); height: 100dvh; }
+
+/* ---------- the sea ---------- */
+.sea { position: relative; overflow: auto; overscroll-behavior: contain; }
+.sea-inner { position: relative; }
+.masthead {
+  position: sticky; left: 0; height: 0; width: fit-content; z-index: 3;
+  padding: 0 36px 0 40px; transform: translateY(max(28px, env(safe-area-inset-top)));
+  pointer-events: none;
+}
+.masthead > * { position: relative; }
+.masthead .game { font-size: 15px; color: var(--muted); margin: 0; }
+.masthead h1 {
+  font-size: clamp(40px, 6vw, 64px); line-height: 1; margin: 6px 0 12px; font-weight: 400;
+  letter-spacing: .12em;
+}
+.masthead .census { margin: 0; font-size: 16px; color: var(--teal); }
+
+.layers, .edges { position: absolute; inset: 0; }
+.layers { pointer-events: none; }
+.layer-line { position: absolute; left: 0; right: 0; height: 0; border-top: 1px dashed rgba(48, 75, 80, .16); }
+.layer-line.deep { border-top-color: rgba(238, 244, 241, .18); }
+.layer-label {
+  position: sticky; left: 0; display: inline-flex; align-items: baseline; gap: 6px;
+  transform: translateY(-50%); padding: 2px 14px 2px 20px; font-size: 14px; color: var(--muted);
+}
+.layer-label b { font-weight: 400; font-size: 26px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.layer-line.deep .layer-label { color: rgba(238, 244, 241, .7); }
+.layer-line.deep .layer-label b { color: var(--mist); }
+
+.edges { overflow: visible; }
+.edge-glow { fill: none; stroke: rgba(255, 255, 255, .55); stroke-width: 10; stroke-linecap: round; }
+.edge { fill: none; stroke-width: 4; stroke-linecap: round; opacity: .9; }
+.edge-current { fill: none; stroke: #fff; stroke-width: 5; stroke-linecap: round; stroke-dasharray: 0 18; opacity: 0; }
+.edge-group { transition: opacity .4s ease; }
+.focus-mode .edge-group { opacity: .28; }
+.focus-mode .edge-group.lit { opacity: 1; }
+.edge-group.lit .edge-current { opacity: .95; animation: current 1.1s linear infinite; }
+.edge-group.lit .edge { stroke-width: 6; }
+@keyframes current { to { stroke-dashoffset: -36; } }
+.ghost-edge { stroke-dasharray: 6 10; opacity: .7; }
+.drop { transition: opacity .4s ease; }
+.focus-mode .edge-group:not(.lit) .drop { opacity: 0; }
+.edge-group.lit .drop { animation: drip 1.8s ease-in infinite; }
+.edge-group.lit .drop.second { animation-delay: .9s; }
+@keyframes drip { 0% { transform: translateY(-26px); opacity: 0; } 30% { opacity: 1; } 100% { transform: translateY(0); opacity: 1; } }
+
+/* ---------- fish nodes ---------- */
+.node {
+  position: absolute; width: 168px; margin-left: -84px; padding: 0; border: 0; background: none;
+  display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer;
+  transition: opacity .4s ease, filter .4s ease;
+}
+.focus-mode .node { opacity: .55; filter: saturate(.7); }
+.focus-mode .node.lit { opacity: 1; filter: none; }
+.node .halo {
+  position: absolute; top: -18px; width: 176px; height: 118px; border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(255, 255, 255, .95), rgba(255, 255, 255, 0));
+  opacity: 0; transform: scale(.7); transition: opacity .35s ease, transform .35s ease;
+}
+.node.selected .halo { opacity: 1; transform: scale(1); }
+.node .swimmer { position: relative; width: 138px; height: 86px; animation: bob 4.2s ease-in-out infinite; animation-delay: var(--phase, 0s); }
+.node:hover .swimmer { animation-duration: 2s; }
+.fish-svg { width: 100%; height: 100%; overflow: visible; }
+.fish-svg .tail { transform-box: fill-box; transform-origin: 0% 50%; animation: tail 1.6s ease-in-out infinite; animation-delay: var(--phase, 0s); }
+@keyframes bob { 0%, 100% { transform: translateY(0) rotate(-1deg); } 50% { transform: translateY(-7px) rotate(1.5deg); } }
+@keyframes tail { 0%, 100% { transform: rotate(-7deg); } 50% { transform: rotate(7deg); } }
+.tag {
+  position: relative; display: flex; align-items: center; gap: 6px; max-width: 168px;
+  padding: 3px 12px 3px 6px; border-radius: 999px; background: rgba(255, 255, 255, .92);
+  font-size: 15px; line-height: 1.35;
+}
+.tag .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.node.selected .tag { background: #fff; box-shadow: 0 6px 18px rgba(29, 59, 64, .18); }
+.rarity {
+  display: inline-flex; align-items: center; gap: 4px; flex: none; padding: 1px 8px 1px 6px;
+  border-radius: 999px; color: #fff; font-size: 12px; line-height: 1.4; background: var(--r, var(--teal));
+}
+.rarity::before { content: ""; width: 7px; height: 7px; background: #fff; transform: rotate(45deg); }
+.ghost .swimmer { animation: none; display: grid; place-items: center; }
+.egg {
+  width: 64px; height: 78px; border-radius: 50% 50% 46% 46% / 58% 58% 42% 42%;
+  border: 2px dashed rgba(255, 255, 255, .9); background: radial-gradient(circle at 35% 30%, rgba(255,255,255,.85), rgba(255,255,255,.18) 60%);
+  animation: pulse 2.4s ease-in-out infinite;
+}
+@keyframes pulse { 50% { transform: scale(1.06); box-shadow: 0 0 28px rgba(255, 255, 255, .55); } }
+.bubbles { position: absolute; left: 50%; top: 10px; width: 0; height: 0; pointer-events: none; }
+.bubbles i {
+  position: absolute; width: var(--s); height: var(--s); border-radius: 50%; left: var(--x);
+  border: 1.5px solid rgba(255, 255, 255, .9); opacity: 0; animation: rise 2.6s ease-out var(--d) 1 forwards;
+}
+@keyframes rise { 10% { opacity: 1; } 100% { transform: translateY(-120px) translateX(var(--dx)); opacity: 0; } }
+
+/* ---------- entrance ---------- */
+.intro .node, .intro .edge-group, .intro .layer-line { opacity: 0; }
+.reveal .node, .reveal .edge-group, .reveal .layer-line { animation: surface .7s ease-out both; animation-delay: var(--delay, 0s); }
+.reveal .edge:not(.ghost-edge) { stroke-dasharray: 1; stroke-dashoffset: 1; animation: draw 1s ease-out both; animation-delay: var(--delay, 0s); }
+@keyframes surface { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+@keyframes draw { to { stroke-dashoffset: 0; } }
+
+/* ---------- gene panel ---------- */
+.panel {
+  position: relative; overflow: auto; background: #fff; border-radius: 28px 0 0 28px;
+  padding: max(28px, env(safe-area-inset-top)) 28px max(28px, env(safe-area-inset-bottom));
+  box-shadow: -18px 0 48px rgba(29, 59, 64, .12);
+}
+.panel-close { display: none; }
+.hero-fish { width: 100%; aspect-ratio: 550 / 330; margin: -6px 0 4px; }
+.hero-fish .swimmer { width: 100%; height: 100%; animation: bob 4.2s ease-in-out infinite; }
+.panel h2 { font-size: 32px; line-height: 1.2; margin: 0; font-weight: 400; letter-spacing: .04em; }
+.subline { display: flex; align-items: center; gap: 10px; margin: 10px 0 14px; color: var(--muted); font-size: 15px; }
+.subline .rarity { font-size: 13px; padding: 2px 10px 2px 8px; }
+.description { margin: 0 0 22px; color: #506a6c; font-size: 16px; line-height: 1.8; }
+.panel h3 { font-size: 18px; font-weight: 400; color: var(--teal); margin: 26px 0 12px; }
+.gene { display: grid; grid-template-columns: 44px 1fr; gap: 12px; align-items: center; padding: 10px 0; }
+.gene + .gene { border-top: 2px solid var(--soft); }
+.swatch { width: 44px; height: 44px; border-radius: 50%; background: var(--c); box-shadow: inset 0 0 0 1px rgba(48, 75, 80, .12); }
+.gene .part { font-size: 17px; }
+.gene .source { font-size: 14px; color: var(--muted); }
+.mixer { position: relative; display: flex; align-items: center; gap: 8px; margin-top: 8px; height: 26px; }
+.mixer .dot {
+  width: 22px; height: 22px; border-radius: 50%; background: var(--c); box-shadow: inset 0 0 0 1px rgba(48,75,80,.12);
+  transition: transform .9s cubic-bezier(.6, 0, .2, 1), opacity .9s ease;
+}
+.mixer .eq { color: var(--muted); font-size: 14px; }
+.mixer.mixed .dot:nth-child(1) { transform: translateX(60px) scale(.6); opacity: 0; }
+.mixer.mixed .dot:nth-child(2) { transform: translateX(30px) scale(.6); opacity: 0; }
+.mixer.mixed .dot:nth-child(3) { transform: scale(.6); opacity: 0; }
+.mixer .result { transform: scale(.5); opacity: 0; transition: transform .6s ease .7s, opacity .6s ease .7s; }
+.mixer.mixed .result { transform: scale(1.1); opacity: 1; }
+.mixer .replay { margin-left: auto; border: 0; background: var(--soft); border-radius: 999px; padding: 2px 12px; font-size: 13px; color: var(--teal); cursor: pointer; }
+
+.bloodline { display: flex; height: 22px; border-radius: 11px; overflow: hidden; background: var(--track); }
+.bloodline span { background: var(--c); width: 0; transition: width 1s cubic-bezier(.2, .7, .2, 1); }
+.bloodline span + span { box-shadow: -1px 0 0 rgba(255, 255, 255, .8); }
+.bloodline-note { font-size: 14px; color: var(--muted); margin: 8px 0 10px; }
+.legend { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.legend li { display: grid; grid-template-columns: 14px 1fr auto; gap: 10px; align-items: center; font-size: 15px; }
+.legend i { width: 14px; height: 14px; border-radius: 50%; background: var(--c); box-shadow: inset 0 0 0 1px rgba(48,75,80,.12); }
+.legend small { display: block; font-size: 13px; color: var(--muted); line-height: 1.3; }
+.legend .pct { font-variant-numeric: tabular-nums; color: var(--teal); }
+
+.chain { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.chain button {
+  border: 0; border-radius: 999px; padding: 4px 12px; background: var(--soft); cursor: pointer; font-size: 15px;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.chain button i { width: 10px; height: 10px; border-radius: 50%; background: var(--c); }
+.chain button[aria-current="true"] { background: var(--ink); color: #fff; }
+.chain .link { width: 14px; height: 2px; background: var(--track); border-radius: 1px; }
+
+.stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 26px; }
+.stat { border-radius: 18px; padding: 12px 16px; background: #E3F2EB; color: var(--teal); }
+.stat.gold { background: #FBF4E4; color: var(--gold); }
+.stat small { display: block; font-size: 14px; }
+.stat b { font-weight: 400; font-size: 28px; font-variant-numeric: tabular-nums; }
+.progress { margin-top: 18px; }
+.progress .row { display: flex; justify-content: space-between; font-size: 15px; color: var(--teal); }
+.progress .bar { height: 12px; border-radius: 6px; background: var(--track); overflow: hidden; margin-top: 6px; }
+.progress .bar span { display: block; height: 100%; width: 0; background: var(--teal); border-radius: 6px; transition: width 1s ease; }
+.progress p { margin: 6px 0 0; font-size: 14px; color: var(--muted); }
+
+.notice { position: absolute; inset: 0; display: grid; place-items: center; padding: 32px; text-align: center; }
+.notice h2 { font-weight: 400; font-size: 28px; margin: 0 0 8px; }
+.notice p { margin: 0; color: var(--muted); }
+
+/* ---------- phone ---------- */
+@media (max-width: 860px) {
+  .app { display: block; }
+  .sea { height: 100dvh; }
+  .masthead { padding-left: 24px; padding-right: 24px; }
+  .masthead h1 { font-size: 40px; }
+  .panel {
+    position: fixed; left: 0; right: 0; bottom: 0; max-height: 78dvh; border-radius: 28px 28px 0 0;
+    padding: 18px 20px max(24px, env(safe-area-inset-bottom)); transform: translateY(105%);
+    transition: transform .45s cubic-bezier(.2, .8, .2, 1); z-index: 10; box-shadow: 0 -18px 48px rgba(29, 59, 64, .22);
+  }
+  .panel.open { transform: none; }
+  .panel::before { content: ""; display: block; width: 44px; height: 5px; border-radius: 3px; background: var(--track); margin: 0 auto 10px; }
+  .panel-close {
+    display: block; position: absolute; right: 16px; top: 14px; border: 0; background: var(--soft);
+    border-radius: 999px; padding: 4px 14px; font-size: 14px; cursor: pointer;
+  }
+  .hero-fish { width: 70%; margin: 0 auto; }
+  .hint {
+    position: fixed; left: 50%; bottom: max(20px, env(safe-area-inset-bottom)); transform: translateX(-50%);
+    margin: 0; padding: 8px 18px; border-radius: 999px; background: rgba(255, 255, 255, .94); color: var(--teal);
+    font-size: 15px; white-space: nowrap; box-shadow: 0 8px 24px rgba(29, 59, 64, .2); z-index: 5;
+    transition: opacity .3s ease;
+  }
+  .hint.gone { opacity: 0; pointer-events: none; }
+}
+@media (min-width: 861px) { .hint { display: none; } }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+  .intro .node, .intro .edge-group, .intro .layer-line { opacity: 1; }
+  .edge-group.lit .edge-current { opacity: 0; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <main class="sea" id="sea" aria-label="族谱水域">
+    <header class="masthead">
+      <p class="game">无限融合变异捕鱼</p>
+      <h1>族谱</h1>
+      <p class="census" id="census">正在读取族谱</p>
+    </header>
+    <div class="sea-inner intro" id="seaInner"></div>
+  </main>
+  <aside class="panel" id="panel" aria-live="polite" aria-label="基因面板"></aside>
+  <p class="hint" id="hint" hidden>轻点一条鱼，查看它的基因来源</p>
+</div>
+
+<script>
+(() => {
+  const GEN_H = 236, SLOT_W = 188, PAD_TOP = 250, PAD_BOTTOM = 140;
+  const MIST = [238, 244, 241], DEEP = [29, 59, 64];
+  const HEX = /^#[0-9a-f]{6}$/i;
+  const sea = document.getElementById('sea');
+  const seaInner = document.getElementById('seaInner');
+  const panel = document.getElementById('panel');
+  const census = document.getElementById('census');
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const phone = matchMedia('(max-width: 860px)');
+  const PAD_X = phone.matches ? 116 : 176;
+  const hint = document.getElementById('hint');
+  let uid = 0, byId = new Map(), children = new Map(), nodes = new Map(), edgeGroups = [], selected = null;
+
+  const el = (tag, cls, text) => {
+    const node = document.createElement(tag);
+    if (cls) node.className = cls;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  };
+  const svgEl = (tag, attrs) => {
+    const node = document.createElementNS('http://www.w3.org/2000/svg', tag);
+    for (const [key, value] of Object.entries(attrs || {})) node.setAttribute(key, value);
+    return node;
+  };
+  const safe = (color, fallback = '#CAD6D1') => HEX.test(color || '') ? color : fallback;
+
+  function fishSvg(colors) {
+    const id = 'clip' + (++uid);
+    const body = safe(colors.body), marks = safe(colors.markings), fins = safe(colors.fins);
+    const wrap = document.createElement('div');
+    wrap.innerHTML = `<svg class="fish-svg" viewBox="120 45 550 340" aria-hidden="true">
+      <defs><clipPath id="${id}"><path d="M140 224 C140 145 216 102 320 108 C424 110 484 161 540 224 C484 282 424 333 320 338 C216 344 140 300 140 224Z"/></clipPath></defs>
+      <g stroke="#304B50" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+        <path fill="${fins}" d="M308 118 Q331 60 386 61 Q379 109 411 142Z"/>
+        <path fill="${fins}" d="M326 319 Q352 380 405 372 L414 299Z"/>
+        <g class="tail"><path fill="${fins}" d="M516 224 Q572 174 639 148 Q630 194 651 224 Q630 254 639 300 Q572 274 516 224Z"/><path fill="none" stroke-width="3" d="M566 224 L613 224"/></g>
+        <path fill="${body}" d="M140 224 C140 145 216 102 320 108 C424 110 484 161 540 224 C484 282 424 333 320 338 C216 344 140 300 140 224Z"/>
+        <g clip-path="url(#${id})" fill="none" stroke="${marks}" stroke-width="29">
+          <path d="M326 105 Q285 157 318 198"/><path d="M399 112 Q351 162 384 204"/><path d="M465 135 Q420 177 450 211"/>
+        </g>
+        <path fill="none" d="M140 224 C140 145 216 102 320 108 C424 110 484 161 540 224 C484 282 424 333 320 338 C216 344 140 300 140 224Z"/>
+        <path fill="${fins}" d="M331 239 Q384 219 389 263 Q359 279 331 239Z"/>
+        <path fill="none" stroke-width="4" d="M276 220 Q285 243 272 260"/>
+        <ellipse fill="#FFFFFF" cx="213" cy="207" rx="23" ry="26" stroke-width="4"/>
+        <ellipse fill="#304B50" cx="206" cy="209" rx="10" ry="13" stroke="none"/>
+        <circle fill="#FFFFFF" cx="204" cy="204" r="3.5" stroke="none"/>
+        <path fill="none" stroke-width="4" d="M145 247 Q163 259 181 247"/>
+      </g></svg>`;
+    return wrap.firstElementChild;
+  }
+
+  function rarityPill(label, color) {
+    const pill = el('span', 'rarity', label);
+    pill.style.setProperty('--r', safe(color, '#378976'));
+    return pill;
+  }
+
+  const depthT = gen => Math.min(1, gen * 0.24);
+  const mixRgb = t => MIST.map((m, i) => Math.round(m + (DEEP[i] - m) * t));
+  const rgb = values => `rgb(${values.join(',')})`;
+
+  function ancestry(id) {
+    const chain = [];
+    for (let fish = byId.get(id); fish; fish = byId.get(fish.parent_id)) chain.unshift(fish);
+    return chain;
+  }
+
+  /* Fin color = OKLab mean of the parent's body, markings and fins, recursively. */
+  function finSources(fish, weight = 1, out = []) {
+    const parent = byId.get(fish.parent_id);
+    if (!parent) {
+      out.push({ who: fish.name, what: '初源本色', color: fish.colors.fins, weight });
+      return out;
+    }
+    const part = weight / 3;
+    ['body', 'markings'].forEach((key, index) => {
+      const profile = parent.profiles[index];
+      const label = key === 'body' ? '鱼身' : '花纹';
+      out.push(profile
+        ? { who: profile.name, what: `${parent.name}的${label}，第 ${parent.generation} 代`, color: parent.colors[key], weight: part }
+        : { who: parent.name, what: `初源${label}`, color: parent.colors[key], weight: part });
+    });
+    return finSources(parent, part, out);
+  }
+
+  function layout(data) {
+    const all = [...data.species.map(f => ({ ...f, kind: 'fish' })),
+                 ...data.pending.filter(p => byId.has(p.parent_id)).map(p => ({
+                   ...p, kind: 'ghost', name: '正在诞生', generation: byId.get(p.parent_id).generation + 1 }))];
+    for (const item of all) {
+      if (!children.has(item.parent_id)) children.set(item.parent_id, []);
+      children.get(item.parent_id).push(item);
+    }
+    let slot = 0;
+    const place = item => {
+      const kids = children.get(item.id) || [];
+      if (item.kind === 'fish' && kids.length) {
+        kids.forEach(place);
+        item.x = (kids[0].x + kids[kids.length - 1].x) / 2;
+      } else {
+        item.x = slot++;
+      }
+    };
+    (children.get(null) || children.get(undefined) || []).forEach(place);
+    const maxGen = Math.max(...all.map(item => item.generation));
+    const treeWidth = PAD_X * 2 + (slot - 1) * SLOT_W;
+    const width = Math.max(treeWidth, sea.clientWidth);
+    const offset = PAD_X + (width - treeWidth) / 2;
+    const height = Math.max(PAD_TOP + maxGen * GEN_H + PAD_BOTTOM + 130, sea.clientHeight);
+    all.forEach(item => { item.px = offset + item.x * SLOT_W; item.py = PAD_TOP + item.generation * GEN_H; });
+    return { all, maxGen, width, height };
+  }
+
+  function drawSea({ all, maxGen, width, height }) {
+    seaInner.style.width = width + 'px';
+    seaInner.style.height = height + 'px';
+    const stops = [`${rgb(MIST)} 0px`];
+    for (let gen = 0; gen <= maxGen + 1; gen++) {
+      stops.push(`${rgb(mixRgb(depthT(gen)))} ${PAD_TOP + gen * GEN_H - 40}px`);
+    }
+    seaInner.style.background = `linear-gradient(to bottom, ${stops.join(',')})`;
+    sea.style.background = rgb(mixRgb(depthT(maxGen + 1)));
+
+    const layers = el('div', 'layers');
+    for (let gen = 0; gen <= maxGen; gen++) {
+      const line = el('div', 'layer-line' + (depthT(gen) > 0.42 ? ' deep' : ''));
+      line.style.top = PAD_TOP + gen * GEN_H + 42 + 'px';
+      line.style.setProperty('--delay', reduced ? '0s' : `${0.25 + gen * 0.45}s`);
+      const label = el('span', 'layer-label');
+      label.append(el('span', '', '第'), el('b', '', String(gen)), el('span', '', '代'));
+      line.append(label);
+      layers.append(line);
+    }
+
+    const placed = new Map(all.map(item => [item.id, item]));
+    const edges = svgEl('svg', { class: 'edges', width, height, viewBox: `0 0 ${width} ${height}`, 'aria-hidden': 'true' });
+    for (const item of all) {
+      const parent = placed.get(item.parent_id);
+      if (!parent) continue;
+      const x1 = parent.px, y1 = parent.py + 118, x2 = item.px, y2 = item.py + 2, mid = (y1 + y2) / 2;
+      const d = `M${x1} ${y1} C${x1} ${mid} ${x2} ${mid} ${x2} ${y2}`;
+      const color = item.kind === 'fish' ? safe(item.colors.fins) : '#FFFFFF';
+      const group = svgEl('g', { class: 'edge-group' });
+      group.dataset.child = item.id;
+      group.style.setProperty('--delay', reduced ? '0s' : `${0.35 + item.generation * 0.45}s`);
+      group.append(svgEl('path', { class: 'edge-glow', d }));
+      const edgeAttrs = { class: 'edge' + (item.kind === 'ghost' ? ' ghost-edge' : ''), d, stroke: color };
+      if (item.kind === 'fish') edgeAttrs.pathLength = 1;
+      group.append(svgEl('path', edgeAttrs));
+      group.append(svgEl('path', { class: 'edge-current', d }));
+      if (item.kind === 'fish') {
+        item.profiles.slice(0, 2).forEach((profile, index) => {
+          const drop = svgEl('circle', { class: 'drop' + (index ? ' second' : ''), cx: x2 + (index ? 26 : -26), cy: y2 - 16, r: 7,
+                                         fill: safe(profile.color), stroke: '#fff', 'stroke-width': 2 });
+          const title = svgEl('title');
+          title.textContent = `${index ? '花纹' : '鱼身'}来自 ${profile.name}`;
+          drop.append(title);
+          group.append(drop);
+        });
+      }
+      edges.append(group);
+      edgeGroups.push(group);
+    }
+    seaInner.append(layers, edges);
+
+    for (const item of all) {
+      const node = el('button', 'node' + (item.kind === 'ghost' ? ' ghost' : ''));
+      node.type = 'button';
+      node.style.left = item.px + 'px';
+      node.style.top = item.py - 40 + 'px';
+      node.style.setProperty('--phase', `${-(item.px * 7 + item.py * 3) % 4200 / 1000}s`);
+      node.style.setProperty('--delay', reduced ? '0s' : `${0.2 + item.generation * 0.45}s`);
+      node.append(el('span', 'halo'));
+      const swimmer = el('span', 'swimmer');
+      swimmer.append(item.kind === 'fish' ? fishSvg(item.colors) : el('span', 'egg'));
+      node.append(swimmer);
+      const tag = el('span', 'tag');
+      tag.append(rarityPill(item.rarity, item.rarity_color), el('span', 'name', item.name));
+      node.append(tag);
+      node.setAttribute('aria-label', item.kind === 'fish'
+        ? `${item.name}，${item.rarity}，第 ${item.generation} 代` : `正在诞生的新鱼，亲代 ${byId.get(item.parent_id).name}`);
+      node.addEventListener('click', () => select(item, true));
+      nodes.set(item.id, { item, node });
+      seaInner.append(node);
+    }
+  }
+
+  function bubbles(node) {
+    if (reduced) return;
+    node.querySelector('.bubbles')?.remove();
+    const box = el('span', 'bubbles');
+    for (let i = 0; i < 7; i++) {
+      const bubble = el('i');
+      bubble.style.setProperty('--s', `${5 + Math.random() * 9}px`);
+      bubble.style.setProperty('--x', `${-40 + Math.random() * 80}px`);
+      bubble.style.setProperty('--dx', `${-20 + Math.random() * 40}px`);
+      bubble.style.setProperty('--d', `${Math.random() * .6}s`);
+      box.append(bubble);
+    }
+    node.append(box);
+  }
+
+  function section(title) {
+    const wrap = el('section');
+    wrap.append(el('h3', '', title));
+    return wrap;
+  }
+
+  function geneRow(color, part, source, extra) {
+    const row = el('div', 'gene');
+    const swatch = el('span', 'swatch');
+    swatch.style.setProperty('--c', safe(color));
+    const text = el('div');
+    text.append(el('div', 'part', part), el('div', 'source', source));
+    if (extra) text.append(extra);
+    row.append(swatch, text);
+    return row;
+  }
+
+  function renderFishPanel(fish) {
+    panel.replaceChildren();
+    const close = el('button', 'panel-close', '收起');
+    close.type = 'button';
+    close.addEventListener('click', () => panel.classList.remove('open'));
+    const hero = el('div', 'hero-fish');
+    const swimmer = el('div', 'swimmer');
+    swimmer.append(fishSvg(fish.colors));
+    hero.append(swimmer);
+    const subline = el('div', 'subline');
+    subline.append(rarityPill(fish.rarity, fish.rarity_color), el('span', '', `第 ${fish.generation} 代`));
+    panel.append(close, hero, el('h2', '', fish.name), subline);
+    if (fish.description) panel.append(el('p', 'description', fish.description));
+
+    const parent = byId.get(fish.parent_id);
+    const genes = section('基因来源');
+    const [first, second] = fish.profiles;
+    const from = (profile, key) => profile
+      ? (profile.fallback ? `${profile.name} 的头像读取失败，沿用亲代的${key}` : `取自 ${profile.name} 的头像`)
+      : '初源本色';
+    genes.append(geneRow(fish.colors.body, '鱼身', from(first, '鱼身')));
+    genes.append(geneRow(fish.colors.markings, '花纹', from(second, '花纹')));
+    if (parent) {
+      const mixer = el('div', 'mixer');
+      ['body', 'markings', 'fins'].forEach(key => {
+        const dot = el('span', 'dot');
+        dot.style.setProperty('--c', safe(parent.colors[key]));
+        dot.title = `${parent.name}的${{ body: '鱼身', markings: '花纹', fins: '鱼鳍' }[key]}`;
+        mixer.append(dot);
+      });
+      mixer.append(el('span', 'eq', '调和为'));
+      const result = el('span', 'dot result');
+      result.style.setProperty('--c', safe(fish.colors.fins));
+      const replay = el('button', 'replay', '再调一次');
+      replay.type = 'button';
+      replay.addEventListener('click', () => { mixer.classList.remove('mixed'); requestAnimationFrame(() => requestAnimationFrame(() => mixer.classList.add('mixed'))); });
+      mixer.append(result, replay);
+      genes.append(geneRow(fish.colors.fins, '鱼鳍', `亲代 ${parent.name} 的鱼身、花纹、鱼鳍三色调和`, mixer));
+      requestAnimationFrame(() => requestAnimationFrame(() => mixer.classList.add('mixed')));
+    } else {
+      genes.append(geneRow(fish.colors.fins, '鱼鳍', '初源本色'));
+    }
+    panel.append(genes);
+
+    if (parent) {
+      const blood = section('鱼鳍血统');
+      const merged = new Map();
+      for (const source of finSources(fish)) {
+        const key = source.who + '|' + source.what;
+        const entry = merged.get(key) || { ...source, weight: 0 };
+        entry.weight += source.weight;
+        merged.set(key, entry);
+      }
+      const sources = [...merged.values()].sort((a, b) => b.weight - a.weight);
+      const bar = el('div', 'bloodline');
+      bar.setAttribute('role', 'img');
+      bar.setAttribute('aria-label', sources.map(s => `${s.who} ${(s.weight * 100).toFixed(1)}%`).join('，'));
+      const spans = sources.map(source => {
+        const span = el('span');
+        span.style.setProperty('--c', safe(source.color));
+        span.title = `${source.who}（${source.what}）${(source.weight * 100).toFixed(1)}%`;
+        bar.append(span);
+        return [span, source.weight];
+      });
+      requestAnimationFrame(() => requestAnimationFrame(() => spans.forEach(([span, weight]) => { span.style.width = weight * 100 + '%'; })));
+      const legend = el('ul', 'legend');
+      for (const source of sources) {
+        const li = el('li');
+        const dot = el('i');
+        dot.style.setProperty('--c', safe(source.color));
+        const who = el('span', '', source.who);
+        who.append(el('small', '', source.what));
+        li.append(dot, who, el('span', 'pct', `${(source.weight * 100).toFixed(1)}%`));
+        legend.append(li);
+      }
+      blood.append(bar, el('p', 'bloodline-note', '鱼鳍每一代都由亲代三色平均调和，越早的祖先占比越小。'), legend);
+      panel.append(blood);
+    }
+
+    const lineage = section('谱系');
+    const chain = el('div', 'chain');
+    ancestry(fish.id).forEach((member, index) => {
+      if (index) chain.append(el('span', 'link'));
+      const button = el('button');
+      button.type = 'button';
+      const dot = el('i');
+      dot.style.setProperty('--c', safe(member.colors.body));
+      button.append(dot, document.createTextNode(member.name));
+      if (member.id === fish.id) button.setAttribute('aria-current', 'true');
+      button.addEventListener('click', () => select(member, false, true));
+      chain.append(button);
+    });
+    lineage.append(chain);
+    panel.append(lineage);
+
+    const stats = el('div', 'stats');
+    const stat = (label, value, gold) => {
+      const box = el('div', 'stat' + (gold ? ' gold' : ''));
+      box.append(el('small', '', label), el('b', '', value));
+      return box;
+    };
+    stats.append(stat('难度', String(+fish.difficulty.toFixed(1))), stat('每次捕获 金币/经验', String(fish.reward), true));
+    panel.append(stats);
+
+    const progress = el('div', 'progress');
+    const row = el('div', 'row');
+    row.append(el('span', '', '下一次变异'), el('span', '', `${+fish.progress.toFixed(3)}% / 100%`));
+    const bar = el('div', 'bar');
+    const fill = el('span');
+    bar.append(fill);
+    progress.append(row, bar);
+    const waiting = [...nodes.values()].some(({ item }) => item.kind === 'ghost' && item.parent_id === fish.id);
+    if (waiting) progress.append(el('p', '', '已有一条子代正在诞生，进度暂停累积。'));
+    requestAnimationFrame(() => requestAnimationFrame(() => { fill.style.width = fish.progress + '%'; }));
+    panel.append(progress);
+  }
+
+  function renderGhostPanel(ghost) {
+    panel.replaceChildren();
+    const close = el('button', 'panel-close', '收起');
+    close.type = 'button';
+    close.addEventListener('click', () => panel.classList.remove('open'));
+    const parent = byId.get(ghost.parent_id);
+    const hero = el('div', 'hero-fish');
+    hero.style.display = 'grid';
+    hero.style.placeItems = 'center';
+    hero.style.background = 'radial-gradient(closest-side, #DCE8E2, #fff)';
+    hero.style.borderRadius = '24px';
+    hero.append(el('span', 'egg'));
+    const subline = el('div', 'subline');
+    subline.append(rarityPill(ghost.rarity, ghost.rarity_color), el('span', '', `第 ${ghost.generation} 代`));
+    panel.append(close, hero, el('h2', '', '新鱼正在诞生'), subline,
+      el('p', 'description', `由 ${ghost.names.join(' 与 ') || '两位群友'} 推动 ${parent.name} 完成变异。名字、描述和颜色生成好后会在群里公布。`));
+    const genes = section('将会继承');
+    genes.append(geneRow('#FFFFFF', '鱼身', `取自 ${ghost.names[0] || '第一位群友'} 的头像`));
+    genes.append(geneRow('#FFFFFF', '花纹', `取自 ${ghost.names[1] || '第二位群友'} 的头像`));
+    const fins = el('div', 'mixer mixed');
+    ['body', 'markings', 'fins'].forEach(key => {
+      const dot = el('span', 'dot');
+      dot.style.setProperty('--c', safe(parent.colors[key]));
+      fins.append(dot);
+    });
+    genes.append(geneRow('#FFFFFF', '鱼鳍', `亲代 ${parent.name} 的三色调和`, fins));
+    panel.append(genes);
+    genes.querySelectorAll('.swatch').forEach(swatch => {
+      swatch.style.background = 'repeating-linear-gradient(45deg, #EEF4F1 0 6px, #fff 6px 12px)';
+    });
+  }
+
+  function select(target, fromTree, scroll) {
+    const item = nodes.get(target.id).item;
+    selected = item.id;
+    const lit = new Set(item.kind === 'fish' ? ancestry(item.id).map(f => f.id) : [...ancestry(item.parent_id).map(f => f.id), item.id]);
+    seaInner.classList.add('focus-mode');
+    for (const [id, { node }] of nodes) {
+      node.classList.toggle('lit', lit.has(id));
+      node.classList.toggle('selected', id === item.id);
+      node.setAttribute('aria-pressed', id === item.id ? 'true' : 'false');
+    }
+    for (const group of edgeGroups) group.classList.toggle('lit', lit.has(group.dataset.child));
+    const { node } = nodes.get(item.id);
+    bubbles(node);
+    if (item.kind === 'fish') renderFishPanel(item); else renderGhostPanel(item);
+    panel.scrollTop = 0;
+    if (phone.matches && (fromTree || scroll)) { panel.classList.add('open'); hint.classList.add('gone'); }
+    if (scroll) node.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'center', inline: 'center' });
+    history.replaceState(null, '', '#' + encodeURIComponent(item.id));
+  }
+
+  function showNotice(title, text) {
+    const notice = el('div', 'notice');
+    const box = el('div');
+    box.append(el('h2', '', title), el('p', '', text));
+    notice.append(box);
+    sea.append(notice);
+    census.textContent = '';
+    panel.remove();
+    document.querySelector('.app').style.gridTemplateColumns = '1fr';
+  }
+
+  async function main() {
+    const token = location.pathname.split('/').filter(Boolean).pop();
+    const base = location.pathname.replace(/\/infinite-mutation-fishing\/lineage\/.*$/, '');
+    let data;
+    try {
+      const response = await fetch(`${base}/api/infinite-mutation-fishing/lineage/${encodeURIComponent(token)}`);
+      data = await response.json();
+      if (!response.ok) throw new Error(data.error || '族谱读取失败');
+    } catch (error) {
+      showNotice('没有找到这片水域', error.message.includes('族谱') ? error.message : '族谱读取失败，请稍后刷新页面重试。');
+      return;
+    }
+    data.species.forEach(fish => byId.set(fish.id, fish));
+    const { stats } = data;
+    census.textContent = `共 ${stats.generations} 代，${stats.species} 种鱼，${stats.contributors} 位群友参与`
+      + (data.pending.length ? `，${data.pending.length} 条新鱼正在诞生` : '');
+    const scene = layout(data);
+    drawSea(scene);
+    const revealMs = reduced ? 0 : 1300 + scene.maxGen * 450;
+    requestAnimationFrame(() => { seaInner.classList.remove('intro'); if (!reduced) seaInner.classList.add('reveal'); });
+    setTimeout(() => seaInner.classList.remove('reveal'), revealMs);
+    sea.scrollLeft = (seaInner.scrollWidth - sea.clientWidth) / 2;
+
+    const hashed = decodeURIComponent(location.hash.slice(1));
+    const newest = [...data.species].sort((a, b) => b.generation - a.generation)[0];
+    const start = byId.get(hashed) || newest;
+    setTimeout(() => { select(start, false, false); hint.hidden = false; }, revealMs);
+    document.addEventListener('keydown', event => { if (event.key === 'Escape') panel.classList.remove('open'); });
+  }
+  main();
+})();
+</script>
+</body>
+</html>
