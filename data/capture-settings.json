@@ -1,7 +1,7 @@
 {
   "normal_lifetime": 300,
   "fever_lifetime": 120,
-  "feed_limit": 5,
+  "feed_limit": 2,
   "rarities": {
     "R": {
       "difficulty": 0,
@@ -27,5 +27,17 @@
       "spawn_probability": 0.0005,
       "mutation_weight": 5
     }
+  },
+  "sign_in": {
+    "full_contribution": 5000,
+    "related_weight": 0.25,
+    "reward_multiplier": [
+      5,
+      20
+    ],
+    "mutation_multiplier": [
+      2,
+      10
+    ]
   }
 }

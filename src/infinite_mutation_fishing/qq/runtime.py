@@ -34,6 +34,11 @@ def spawn_message(bot, data, fish):
     return image_message(data, "mutation-spawn.webp")
 
 
+def fever_start_text(minutes):
+    return (f"大量的鱼群聚集了起来！\n接下来{minutes}分钟内，鱼将不会逃走，并且每个人都可以捕获一次！\n"
+            "但与此同时，你的等级和渔具的效果似乎受到了削弱……")
+
+
 def mark_announced(state, spawn_id):
     if state["spawn"] and state["spawn"]["id"] == spawn_id:
         state["spawn"]["announced"] = True
@@ -90,7 +95,7 @@ async def show_pond(bot, event, group_id):
     lines = [f"《{GAME_NAME}》", f"Lv.{player['level']} · 金币 {player['coins']} · 经验 {player['experience']}",
              f"渔力 {fishing_power(player, fever, now)} · 变异力 {mutation_power(player)}",
              f"今日投饵 {result['feeds']}/5 · 已有 {result['species']} 个鱼种",
-             f"Fever 剩余 {max(0, int((result['fever_until']-now)/60))} 分钟" if fever else "普通模式：仅限一人捕获"]
+             f"Fever 剩余 {max(0, int((result['fever_until']-now)/60))} 分钟" if fever else "普通模式：每人可尝试一次"]
     if result["pending"]:
         lines.append(f"待生成变异：{result['pending']} 个")
     if result["fish"]:
@@ -101,6 +106,24 @@ async def show_pond(bot, event, group_id):
     else:
         message = UniMessage.text("\n".join(lines) + "\n当前没有鱼，等待刷新。")
     await message.send()
+
+
+async def handle_sign_in(bot, event, group_id):
+    user_id = event.get_user_id()
+    name = await member_name(bot, event, group_id, user_id)
+    message_id = getattr(event, "message_id", None) or getattr(event, "id", None)
+    if message_id is None:
+        raise GameError("无法识别消息编号，请重新发送指令")
+    result = await asyncio.to_thread(get_repository().command, group_id, str(message_id), "signin", user_id, name)
+    if result.get("duplicate"):
+        return
+    data = await asyncio.to_thread(render_catch_card, appearance(result["fish"]),
+                                  player_name=result["player_name"], coins=result["coins"],
+                                  experience=result["experience"], mutation_contribution=Decimal(result["contribution"])/1000,
+                                  contribution_note=result["note"],
+                                  mutation_progress=Decimal(result["mutation_progress"])/1000,
+                                  title="签到成功", eyebrow=f"金币经验 ×{result['reward_multiplier']}")
+    await image_message(data, "mutation-signin.webp").send()
 
 
 async def handle_economy(bot, event, group_id, operation, payload):
@@ -181,10 +204,11 @@ async def force_refresh(bot, event, group_id, fever=False):
         refresh(state, now)
         if state["spawn"]:
             raise GameError("当前仍有鱼，请捕获或等待离开后再测试")
-        if fever:
-            start_fever(state, now, random.SystemRandom())
-        return spawn_fish(state, now, random.SystemRandom(), force=True)
-    result = await asyncio.to_thread(get_repository().transact, group_id, transition)
+        minutes = start_fever(state, now, random.SystemRandom()) if fever else None
+        return spawn_fish(state, now, random.SystemRandom(), force=True), minutes
+    result, minutes = await asyncio.to_thread(get_repository().transact, group_id, transition)
+    if minutes:
+        await UniMessage.text(fever_start_text(minutes)).send()
     data = await asyncio.to_thread(render_spawn_card, appearance(result["fish"]), fever=result["fever"])
     await spawn_message(bot, data, result["fish"]).send()
     await asyncio.to_thread(get_repository().transact, group_id, lambda state: mark_announced(state, result["spawn_id"]))
@@ -208,8 +232,10 @@ async def scheduled_tick():
             result = await asyncio.to_thread(repository.transact, group_id,
                                              lambda state: tick(state, time.time(), random.SystemRandom()))
             if result:
+                if result["fever_ended"]:
+                    await UniMessage.text("鱼群散去了！").send(target=Target(str(group_id)), bot=bot)
                 if result["fever_started"]:
-                    await UniMessage.text(f"Fever 开始！持续 {result['fever_started']} 分钟。每轮每人可尝试一次，失败不会惊走鱼群。").send(target=Target(str(group_id)), bot=bot)
+                    await UniMessage.text(fever_start_text(result["fever_started"])).send(target=Target(str(group_id)), bot=bot)
                 if result["spawn"]:
                     spawn = result["spawn"]
                     data = await asyncio.to_thread(render_spawn_card, appearance(spawn["fish"]), fever=spawn["fever"])

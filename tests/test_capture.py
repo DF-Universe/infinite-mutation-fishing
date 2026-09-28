@@ -6,8 +6,8 @@ from zoneinfo import ZoneInfo
 import pytest
 
 from infinite_mutation_fishing.capture import (
-    GameError, add_contribution, catch_fish, contribution_base, apply_command,
-    finish_mutation, get_player, initial_state, refresh, spawn_fish, start_fever, tick,
+    SETTINGS, GameError, add_contribution, catch_fish, contribution_base, apply_command,
+    finish_mutation, get_player, initial_state, refresh, sign_in, spawn_fish, start_fever, tick,
 )
 
 NOW = datetime(2026, 9, 28, 12, tzinfo=ZoneInfo("Asia/Shanghai")).timestamp()
@@ -29,14 +29,16 @@ def ready(fever=False):
     return state
 
 
-def test_normal_success_removes_fish_and_only_pays_once():
+def test_normal_fish_allows_everyone_once_but_one_contribution():
     state = ready()
     result = catch_fish(state, "a", "A", NOW, Lucky())
     assert result["coins"] == result["experience"] == 10
     assert result["contribution"] == 5000
-    assert state["spawn"] is None
-    with pytest.raises(GameError, match="没有鱼"):
-        catch_fish(state, "b", "B", NOW, Lucky())
+    assert state["spawn"] is not None
+    second = catch_fish(state, "b", "B", NOW, Lucky())
+    assert second["success"] and second["contribution"] == 0
+    with pytest.raises(GameError, match="尝试过"):
+        catch_fish(state, "a", "A", NOW, Lucky())
 
 
 def test_fever_multiple_players_but_one_attempt_per_player_and_one_contribution():
@@ -139,15 +141,10 @@ def test_fever_failure_does_not_flee_or_claim_contribution():
     assert catch_fish(state, "b", "B", NOW, Lucky())["contribution"] > 0
 
 
-def test_normal_failure_can_flee():
-    class Flee(Lucky):
-        def __init__(self):
-            self.values = iter([.99, 0])
-        def random(self):
-            return next(self.values)
+def test_normal_failure_does_not_flee():
     state = ready()
-    result = catch_fish(state, "a", "A", NOW, Flee())
-    assert result["escaped"] and state["spawn"] is None
+    result = catch_fish(state, "a", "A", NOW, Unlucky())
+    assert not result["success"] and state["spawn"] is not None
     assert result["contribution"] == 0
 
 
@@ -180,8 +177,8 @@ def test_daily_feed_fever_and_level_rules():
     state = initial_state()
     player = get_player(state, "a", "A")
     player["coins"] = 100
-    player["bag"]["1"] = 6
-    for _ in range(5):
+    player["bag"]["1"] = SETTINGS["feed_limit"] + 1
+    for _ in range(SETTINGS["feed_limit"]):
         apply_command(state, "use", "a", "A", NOW, payload={"item": "1", "force": True})
     with pytest.raises(GameError):
         apply_command(state, "use", "a", "A", NOW, payload={"item": "1", "force": True})
@@ -213,3 +210,69 @@ def test_catch_progress_reports_total_and_completed_round_before_reset():
     result = catch_fish(state,'b','B',NOW,Lucky())
     assert result['mutation_progress'] == 100000 and result['job_id']
     assert fish['progress'] == 0
+
+
+def test_fever_end_is_reported_once():
+    state = ready(fever=True)
+    assert tick(state, NOW + 30, Lucky())["fever_ended"] is False
+    end = state["fever_until"]
+    assert tick(state, end + 1, Lucky())["fever_ended"] is True
+    assert tick(state, end + 120, Lucky())["fever_ended"] is False
+    legacy = ready()
+    legacy.pop("fever_active", None)
+    legacy["fever_until"] = NOW - 3600
+    assert tick(legacy, NOW, Lucky())["fever_ended"] is False
+
+
+def signin_state():
+    state = initial_state()
+    ancestor = state["species"]["ancestor"]
+    state["species"]["mine"] = {**ancestor, "id": "mine", "name": "我的鱼", "contributors": ["a"]}
+    return state
+
+
+def test_sign_in_once_per_day_with_multiplied_rewards():
+    state = signin_state()
+    rng = random.Random(3)
+    result = sign_in(state, "a", "A", NOW, rng)
+    low, high = SETTINGS["sign_in"]["reward_multiplier"]
+    assert low <= result["reward_multiplier"] <= high
+    assert result["coins"] == result["experience"] == result["fish"]["reward"] * result["reward_multiplier"]
+    assert state["players"]["a"]["caught"][result["fish"]["id"]] == 1
+    with pytest.raises(GameError, match="签到过"):
+        sign_in(state, "a", "A", NOW + 60, rng)
+    refresh(state, NOW + 86400)
+    sign_in(state, "a", "A", NOW + 86400, rng)
+
+
+def test_sign_in_contribution_uses_mutation_multiplier():
+    class Fixed(Lucky):
+        def randint(self, a, b):
+            return 1000 if a == 850 else b
+    state = initial_state()
+    get_player(state, "b", "B")["updated_at"] = NOW
+    state["species"]["ancestor"]["contributions"] = {"b": 10000}
+    state["species"]["ancestor"]["progress"] = 10000
+    result = sign_in(state, "a", "A", NOW, Fixed())
+    high = SETTINGS["sign_in"]["mutation_multiplier"][1]
+    assert result["mutation_multiplier"] == high
+    assert result["contribution"] == SETTINGS["sign_in"]["full_contribution"] * high
+
+
+def test_sign_in_weights_related_fish_down_and_ignores_buffs():
+    import infinite_mutation_fishing.capture as capture
+    state = signin_state()
+    player = get_player(state, "a", "A", NOW)
+    player["buffs"] = {"power": {"item_id": 4, "amount": 1000, "uses": 1},
+                       "reward": {"item_id": 9, "percent": 100, "expires_at": NOW + 600}}
+    seen = {}
+    def capture_weights(population, weights):
+        seen.update(zip([fish["id"] for fish in population], weights))
+        return [population[0]]
+    class Spy(Lucky):
+        def choices(self, population, weights=None, k=1):
+            return capture_weights(population, weights)
+    result = sign_in(state, "a", "A", NOW, Spy())
+    assert abs(seen["mine"] / seen["ancestor"] - SETTINGS["sign_in"]["related_weight"]) < 1e-9
+    assert player["buffs"]["power"]["uses"] == 1
+    assert result["coins"] == result["fish"]["reward"] * result["reward_multiplier"]

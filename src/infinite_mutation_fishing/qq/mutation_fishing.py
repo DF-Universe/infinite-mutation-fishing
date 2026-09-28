@@ -146,3 +146,12 @@ def register_status_command(command, mode):
 status = register_status_command("状态", "self")
 pool_status = register_status_command("池子状态", "pool")
 full_status = register_status_command("完整状态", "full")
+
+
+sign_in = on_command("签到", rule=enabled_in_group, force_whitespace=True)
+
+
+@sign_in.handle()
+async def sign_in_command(bot: Bot, event: Event):
+    from .runtime import handle_sign_in
+    await run_action(handle_sign_in, bot, event)

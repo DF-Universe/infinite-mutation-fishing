@@ -78,7 +78,7 @@ def test_spawn_card_explains_normal_and_fever_capture_rules(fish, monkeypatch):
     monkeypatch.setattr(visuals, "_text", lambda draw, position, text, *args, **kwargs: shown.append(str(text)))
     render_spawn_card(fish)
     assert "有鱼出现了" in shown
-    assert any("仅限一人捕获" in value for value in shown)
+    assert any("每人可尝试一次" in value for value in shown)
     shown.clear()
     render_spawn_card(fish, fever=True)
     assert "发现新鱼群" in shown

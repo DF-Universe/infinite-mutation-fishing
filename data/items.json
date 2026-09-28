@@ -20,14 +20,14 @@
     "id": 2,
     "name": "白银食料",
     "rarity": 2,
-    "description": "使用后，在 60 分钟内，【R】鱼和【SR】鱼的出现概率将大幅提高",
+    "description": "使用后，在 45 分钟内，【R】鱼和【SR】鱼的出现概率将大幅提高",
     "price": 50,
     "type": "consumable",
     "mutation_power": 0,
     "buyable": true,
     "effect": {
       "kind": "feed",
-      "duration": 3600,
+      "duration": 2700,
       "bonuses": {
         "R": 60,
         "SR": 100
@@ -38,13 +38,13 @@
     "id": 3,
     "name": "黄金食料",
     "rarity": 3,
-    "description": "使用后，在 120 分钟内，【R】鱼、【SR】鱼和【SSR】鱼的出现概率将大幅提高",
+    "description": "使用后，在 60 分钟内，【R】鱼、【SR】鱼和【SSR】鱼的出现概率将大幅提高",
     "type": "consumable",
     "mutation_power": 0,
     "buyable": false,
     "effect": {
       "kind": "feed",
-      "duration": 7200,
+      "duration": 3600,
       "bonuses": {
         "R": 60,
         "SR": 120,

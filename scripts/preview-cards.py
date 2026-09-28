@@ -42,6 +42,10 @@ def main():
         "catch": lambda: render_catch_card(
             fish, player_name="测试渔友", coins=128, experience=24,
             mutation_contribution=4.625, contribution_note="首位有效捕获 · 变异刻度 +4.625%", success_rate=60.834),
+        "signin": lambda: render_catch_card(
+            fish, player_name="测试渔友", coins=10 * 12, experience=10 * 12, mutation_contribution=35.7,
+            contribution_note="签到贡献 ×8 · 已计入变异进度", mutation_progress=48.2,
+            title="签到成功", eyebrow="金币经验 ×12"),
         "catch-zero": lambda: render_catch_card(
             fish, player_name="测试渔友", coins=128, experience=24,
             mutation_contribution=0, contribution_note="本次鱼群的变异贡献机会已被使用", success_rate=60),

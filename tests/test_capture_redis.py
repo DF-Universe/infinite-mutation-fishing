@@ -26,19 +26,18 @@ def repository(monkeypatch):
         client.delete(*keys)
 
 
-def test_concurrent_normal_catches_have_exactly_one_winner(repository):
+def test_concurrent_catches_each_attempt_once_with_one_contribution(repository):
     repository.transact("g", lambda state: spawn_fish(state, NOW, Lucky(), force=True))
     def attempt(index):
-        try:
-            return repository.command("g", str(index), "catch", str(index), "渔友", NOW)
-        except GameError:
-            return None
+        return repository.command("g", str(index), "catch", str(index), "渔友", NOW)
     with ThreadPoolExecutor(max_workers=8) as pool:
         results = list(pool.map(attempt, range(8)))
-    assert sum(result is not None for result in results) == 1
+    successes = sum(result["success"] for result in results)
+    assert sum(result["contribution"] > 0 for result in results) == min(1, successes)
     reloaded = Repository(repository.redis, repository.prefix).read("g")
-    assert sum(player["coins"] for player in reloaded["players"].values()) == 10
-    assert reloaded["species"]["ancestor"]["progress"] == 5000
+    assert sum(player["coins"] for player in reloaded["players"].values()) == 10 * successes
+    assert reloaded["species"]["ancestor"]["progress"] == (5000 if successes else 0)
+    assert sorted(reloaded["spawn"]["attempted"]) == [str(index) for index in range(8)]
 
 
 def test_message_redelivery_does_not_consume_next_spawn(repository):

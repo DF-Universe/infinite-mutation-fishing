@@ -108,8 +108,9 @@ def test_reward_card_expiry_floor_and_separate_buff_types():
     assert reward_percent(player, NOW+1200) == 0
 
 
-@pytest.mark.parametrize('key,duration,bonuses', [('1', 1800, {'R':40}), ('2',3600,{'R':60,'SR':100}), ('3',7200,{'R':60,'SR':120,'SSR':200})])
-def test_food_inventory_expiry_and_force_override(key, duration, bonuses):
+@pytest.mark.parametrize('key', ['1', '2', '3'])
+def test_food_inventory_expiry_and_force_override(key):
+    duration, bonuses = ITEMS[key]['effect']['duration'], ITEMS[key]['effect']['bonuses']
     state = initial_state()
     refresh(state, NOW)
     player = get_player(state, 'a')

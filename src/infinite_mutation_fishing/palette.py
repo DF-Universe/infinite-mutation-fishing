@@ -60,10 +60,39 @@ def mutation_palette(first: str, second: str, parent: dict[str, str]) -> dict[st
     }
 
 
+BACKGROUND_DISTANCE = .08
+
+
+def _distance(first, second) -> float:
+    a, b = (_to_oklab(_hex(v / 255 for v in rgb)) for rgb in (first, second))
+    return sum((x - y) ** 2 for x, y in zip(a, b)) ** .5
+
+
+def _flat_background(rgba):
+    """The border color when at least 60% of the outermost ring is one opaque color."""
+    ring = rgba.copy()
+    ring.thumbnail((128, 128), Image.Resampling.LANCZOS)
+    width, height = ring.size
+    border = [ring.getpixel((x, y)) for x in range(width) for y in (0, height - 1)]
+    border += [ring.getpixel((x, y)) for y in range(1, height - 1) for x in (0, width - 1)]
+    border = [(r, g, b) for r, g, b, alpha in border if alpha >= 128]
+    if len(border) < 8:
+        return None
+    strip = Image.new("RGB", (len(border), 1))
+    strip.putdata(border)
+    quantized = strip.quantize(colors=4, method=Image.Quantize.MEDIANCUT)
+    count, index = max(quantized.getcolors())
+    if count / len(border) < .6:
+        return None
+    return tuple(quantized.getpalette()[index * 3:index * 3 + 3])
+
+
 def extract_avatar_color(data: bytes) -> str:
     """Pick a sizable color cluster, favoring color over neutral background.
 
-    Reduce edge influence by cropping 8%; ignore nearly transparent pixels.
+    A flat border color (e.g. a white sticker background) is removed first when
+    enough subject pixels remain. Then reduce edge influence by cropping 8%;
+    ignore nearly transparent pixels.
     Tiny colored accents below 4% never override the main palette. Achromatic
     avatars remain achromatic. This is a heuristic, not semantic segmentation.
     """
@@ -71,6 +100,7 @@ def extract_avatar_color(data: bytes) -> str:
         if source.width * source.height > 16_000_000:
             raise ValueError("Avatar dimensions exceed limit")
         rgba = ImageOps.exif_transpose(source).convert("RGBA")
+    background = _flat_background(rgba)
     width, height = rgba.size
     rgba = rgba.crop((int(width * .08), int(height * .08), width - int(width * .08), height - int(height * .08)))
     rgba.thumbnail((128, 128), Image.Resampling.LANCZOS)
@@ -78,6 +108,10 @@ def extract_avatar_color(data: bytes) -> str:
     pixels = [(r, g, b) for r, g, b, alpha in raw_pixels if alpha >= 128]
     if not pixels:
         raise ValueError("Avatar has no visible pixels")
+    if background is not None:
+        subject = [pixel for pixel in pixels if _distance(pixel, background) > BACKGROUND_DISTANCE]
+        if len(subject) >= len(pixels) * .15:
+            pixels = subject
     strip = Image.new("RGB", (len(pixels), 1))
     strip.putdata(pixels)
     quantized = strip.quantize(colors=12, method=Image.Quantize.MEDIANCUT)

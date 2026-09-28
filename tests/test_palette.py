@@ -67,3 +67,25 @@ def test_member_selection_deduplicates_excludes_bot_and_uses_card():
     assert by_id["3"]["name_source"] == "nickname"
     with pytest.raises(ValueError):
         select_contributors(members[:1], exclude_ids=[1])
+
+
+def _png(image):
+    buffer = BytesIO()
+    image.save(buffer, "PNG")
+    return buffer.getvalue()
+
+
+def test_flat_white_background_is_ignored_for_sticker_avatars():
+    from PIL import ImageDraw
+    image = Image.new("RGB", (200, 200), "white")
+    draw = ImageDraw.Draw(image)
+    for index, shade in enumerate(("#9C87B2", "#8A76A3", "#A996BE", "#7E6C96")):
+        draw.rectangle((60 + index * 20, 60, 80 + index * 20, 140), fill=shade)
+    color = extract_avatar_color(_png(image))
+    assert color != "#FFFFFF"
+    r, g, b = (int(color[i:i + 2], 16) for i in (1, 3, 5))
+    assert b > g and r > g
+
+
+def test_single_color_avatar_keeps_its_color():
+    assert extract_avatar_color(_png(Image.new("RGB", (64, 64), "#3366CC"))) == "#3366CC"

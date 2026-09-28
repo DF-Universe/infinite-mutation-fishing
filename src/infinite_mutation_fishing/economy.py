@@ -10,6 +10,7 @@ from .errors import GameError
 DATA = Path(__file__).resolve().parents[2] / "data"
 ITEMS = {str(item["id"]): item for item in json.loads((DATA / "items.json").read_text(encoding="utf-8"))}
 GACHA = json.loads((DATA / "gacha.json").read_text(encoding="utf-8"))
+FEED_LIMIT = json.loads((DATA / "capture-settings.json").read_text(encoding="utf-8"))["feed_limit"]
 
 
 def ensure_inventory(player):
@@ -57,12 +58,12 @@ def expire_buffs(player, now):
                        if (value.get("expires_at", now+1) > now and value.get("uses", 1) > 0)}
 
 
-def fishing_power(player, fever, now):
+def fishing_power(player, fever, now, *, include_buffs=True):
     expire_buffs(player, now)
     power = (player["level"] // 5 if fever else player["level"]) + player.get("gear_power", 0)
     for item in equipped_items(player):
         power += item["power"] // 2 if fever and item["type"] == "rod" else item["power"]
-    return power + player["buffs"].get("power", {}).get("amount", 0)
+    return power + (player["buffs"].get("power", {}).get("amount", 0) if include_buffs else 0)
 
 
 def mutation_power(player):
@@ -126,8 +127,8 @@ def use_item(state, player, identifier, now, *, force=False):
     if kind == "feed":
         if now < state["fever_until"]:
             raise GameError("Fever 期间无法投放食料")
-        if state["feeds"] >= 5:
-            raise GameError("鱼已经吃饱了，明天再喂吧（每天最多 5 份）")
+        if state["feeds"] >= FEED_LIMIT:
+            raise GameError(f"鱼已经吃饱了，明天再喂吧（每天最多 {FEED_LIMIT} 份）")
         current = state.get("feed_buff")
         if not force and current and current["expires_at"] > now:
             raise GameError(f"当前已有食料效果；确定覆盖请发送「强制使用 {item['id']}」")

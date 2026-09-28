@@ -197,7 +197,7 @@ def render_spawn_card(fish: FishVisual, *, fever: bool = False) -> bytes:
     image.paste(icon, (185, 162), icon)
     name = _fit(fish.name, 30, 660, True)
     _fish_name(draw, ((WIDTH - _font(30, True).getlength(name))/2, 427), name, 30)
-    _text(draw, (38, 513), "发送「捕鱼」· 每人可尝试一次" if fever else "发送「捕鱼」· 仅限一人捕获", 20, TEAL, True)
+    _text(draw, (38, 513), "发送「捕鱼」· 每人可尝试一次", 20, TEAL, True)
     return _webp(image)
 
 
@@ -206,6 +206,7 @@ def render_catch_card(
     mutation_contribution: Decimal | float | int, contribution_note: str = "", success: bool = True,
     success_rate: Decimal | float | int | None = None,
     mutation_progress: Decimal | float | int | None = None,
+    title: str | None = None, eyebrow: str = "本次收获",
 ) -> bytes:
     """Display settled rewards; contribution is percentage points, not a ratio.
 
@@ -230,7 +231,7 @@ def render_catch_card(
     progress = None if mutation_progress is None else Decimal(str(mutation_progress))
     if progress is not None and (not progress.is_finite() or not 0 <= progress <= 100):
         raise ValueError("Mutation progress must be between 0 and 100 percent")
-    image, draw = _card(648 if progress is not None else 568, "捕鱼成功" if success else "鱼儿没上钩", "本次收获")
+    image, draw = _card(648 if progress is not None else 568, title or ("捕鱼成功" if success else "鱼儿没上钩"), eyebrow)
     draw.rounded_rectangle((28, 114, 772, 313), radius=24, fill="white")
     icon = _fish_icon(tuple(fish.colors), 255)
     image.paste(icon, (42, 131), icon)
