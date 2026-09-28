@@ -5,7 +5,7 @@ import time
 
 from nonebot import get_driver
 from nonebot.log import logger
-from nonebot_plugin_alconna import UniMessage, Target
+from nonebot_plugin_alconna import UniMessage, Target, Other
 
 from .. import GAME_NAME
 from ..capture import SETTINGS, GameError, get_player, refresh, tick, start_fever, spawn_fish
@@ -24,6 +24,14 @@ def appearance(fish):
 
 def image_message(data, filename):
     return UniMessage.image(raw=data, mimetype="image/webp", name=filename)
+
+
+def spawn_message(bot, data, fish):
+    """Milky shows the image summary in chat previews instead of [图片]."""
+    from nonebot.adapters.milky import Bot as MilkyBot, MessageSegment as MilkySegment
+    if isinstance(bot, MilkyBot):
+        return UniMessage(Other(MilkySegment.image(raw=data, summary=f"{fish['name']}【{fish['rarity']}】 出现了！")))
+    return image_message(data, "mutation-spawn.webp")
 
 
 def mark_announced(state, spawn_id):
@@ -178,7 +186,7 @@ async def force_refresh(bot, event, group_id, fever=False):
         return spawn_fish(state, now, random.SystemRandom(), force=True)
     result = await asyncio.to_thread(get_repository().transact, group_id, transition)
     data = await asyncio.to_thread(render_spawn_card, appearance(result["fish"]), fever=result["fever"])
-    await image_message(data, "mutation-spawn.webp").send()
+    await spawn_message(bot, data, result["fish"]).send()
     await asyncio.to_thread(get_repository().transact, group_id, lambda state: mark_announced(state, result["spawn_id"]))
 
 
@@ -205,7 +213,7 @@ async def scheduled_tick():
                 if result["spawn"]:
                     spawn = result["spawn"]
                     data = await asyncio.to_thread(render_spawn_card, appearance(spawn["fish"]), fever=spawn["fever"])
-                    await image_message(data, "mutation-spawn.webp").send(target=Target(str(group_id)), bot=bot)
+                    await spawn_message(bot, data, spawn["fish"]).send(target=Target(str(group_id)), bot=bot)
                     await asyncio.to_thread(repository.transact, group_id, lambda state: mark_announced(state, spawn["spawn_id"]))
         except Exception as exc:
             logger.exception(f"变异捕鱼刷新失败：{group_id} ({type(exc).__name__})")
