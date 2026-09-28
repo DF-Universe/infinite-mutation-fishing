@@ -14,6 +14,7 @@ from types import ModuleType, SimpleNamespace
 import nonebot
 
 nonebot.init()
+import nonebot_plugin_apscheduler
 manager_module = ModuleType("src.data_access.plugin_manager")
 registered = []
 manager_module.plugin_manager = SimpleNamespace(
@@ -36,6 +37,63 @@ events = [
 ]
 for event, expected in events:
     assert asyncio.run(module.enabled_in_group(event)) is expected
+
+nonebot.require("nonebot_plugin_alconna")
+from infinite_mutation_fishing.qq import runtime
+from infinite_mutation_fishing.capture import initial_state
+from nonebot_plugin_alconna import UniMessage
+sent = []
+async def fake_send(self, *args, **kwargs):
+    sent.append(self)
+UniMessage.send = fake_send
+class FakeRepository:
+    def command(self, *args):
+        return {"fish": initial_state()["species"]["ancestor"], "player_name": "测试",
+                "coins": 10, "experience": 10, "contribution": 4250,
+                "note": "测试贡献", "success": True, "success_rate": 60.83, "mutation_progress": 54250}
+runtime.get_repository = lambda: FakeRepository()
+event = SimpleNamespace(message_id=1, get_user_id=lambda: "7",
+                        data=SimpleNamespace(sender=SimpleNamespace(card="名片", nickname="昵称")))
+asyncio.run(runtime.handle_catch(SimpleNamespace(), event, "123"))
+assert len(sent) == 1
+segment = sent[0][0]
+assert segment.mimetype == "image/webp" and segment.name.endswith(".webp")
+assert segment.raw[:4] == b"RIFF" and segment.raw[8:12] == b"WEBP"
+
+from infinite_mutation_fishing.capture import apply_command, get_player
+state = initial_state()
+get_player(state, "7")["coins"] = 200
+class EconomyRepository:
+    def transact(self, group, transition):
+        return transition(state)
+    def command(self, group, message, operation, user, name, **kwargs):
+        return apply_command(state, operation, user, name, 1790568000, payload=kwargs.get("payload"))
+runtime.get_repository = lambda: EconomyRepository()
+asyncio.run(runtime.show_inventory(SimpleNamespace(), event, "123", shop=True))
+asyncio.run(runtime.handle_economy(SimpleNamespace(), event, "123", "buy", {"item":"201"}))
+asyncio.run(runtime.handle_economy(SimpleNamespace(), event, "123", "use", {"item":"201"}))
+asyncio.run(runtime.handle_economy(SimpleNamespace(), event, "123", "draw", {"mode":"10"}))
+asyncio.run(runtime.show_inventory(SimpleNamespace(), event, "123"))
+assert state["players"]["7"]["coins"] == 50
+assert state["players"]["7"]["equipment"]["rod"] == "201"
+assert sum(state["players"]["7"]["bag"].values()) == 12
+for index in [0,1,4,5]:
+    assert sent[index][0].mimetype == "image/webp"
+    assert sent[index][0].raw[:4] == b"RIFF"
+assert str(sent[2]) == "购买 青铜渔具 成功"
+assert str(sent[3]) == "装备 青铜渔具 成功"
+asyncio.run(runtime.show_inventory(SimpleNamespace(), event, "123", page_text="999"))
+try:
+    asyncio.run(runtime.show_inventory(SimpleNamespace(), event, "123", page_text="abc"))
+except ValueError as exc:
+    assert str(exc) == "页数必须是数字"
+else:
+    raise AssertionError("Invalid page accepted")
+from infinite_mutation_fishing.qq import profiles
+profiles.fetch_avatar = lambda *args, **kwargs: (_ for _ in ()).throw(ValueError("unavailable"))
+asyncio.run(runtime.show_panel(SimpleNamespace(), event, "123"))
+assert sent[-1][0].name == "mutation-panel.webp"
+
 '''
     env = {**os.environ, "PYTHONPATH": os.pathsep.join([str(package_src), str(tmp_path)])}
     result = subprocess.run(

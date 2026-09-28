@@ -1,0 +1,113 @@
+from concurrent.futures import ThreadPoolExecutor
+import uuid
+
+import pytest
+import redis
+
+from infinite_mutation_fishing import capture
+from infinite_mutation_fishing.capture import GameError, spawn_fish
+from infinite_mutation_fishing.repository import Repository
+from test_capture import Lucky, NOW
+
+
+@pytest.fixture
+def repository(monkeypatch):
+    client = redis.Redis(host="localhost", port=6379, decode_responses=True)
+    try:
+        client.ping()
+    except redis.ConnectionError:
+        pytest.skip("Local Redis unavailable")
+    prefix = "test:mutation:" + uuid.uuid4().hex + ":"
+    repo = Repository(client, prefix)
+    monkeypatch.setattr(capture.random, "SystemRandom", Lucky)
+    yield repo
+    keys = list(client.scan_iter(prefix + "*"))
+    if keys:
+        client.delete(*keys)
+
+
+def test_concurrent_normal_catches_have_exactly_one_winner(repository):
+    repository.transact("g", lambda state: spawn_fish(state, NOW, Lucky(), force=True))
+    def attempt(index):
+        try:
+            return repository.command("g", str(index), "catch", str(index), "渔友", NOW)
+        except GameError:
+            return None
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        results = list(pool.map(attempt, range(8)))
+    assert sum(result is not None for result in results) == 1
+    reloaded = Repository(repository.redis, repository.prefix).read("g")
+    assert sum(player["coins"] for player in reloaded["players"].values()) == 10
+    assert reloaded["species"]["ancestor"]["progress"] == 5000
+
+
+def test_message_redelivery_does_not_consume_next_spawn(repository):
+    repository.transact("g", lambda state: spawn_fish(state, NOW, Lucky(), force=True))
+    repository.command("g", "message", "catch", "a", "A", NOW)
+    repository.transact("g", lambda state: spawn_fish(state, NOW+60, Lucky(), force=True))
+    result = repository.command("g", "message", "catch", "a", "A", NOW+60)
+    assert result == {"duplicate": True}
+    assert repository.read("g")["spawn"] is not None
+    assert repository.read("g")["players"]["a"]["coins"] == 10
+
+
+def test_failed_transaction_does_not_persist_partial_changes(repository):
+    def fail(state):
+        state["feeds"] = 99
+        raise GameError("rollback")
+    with pytest.raises(GameError):
+        repository.transact("g", fail)
+    assert repository.read("g")["feeds"] == 0
+
+
+def test_concurrent_fever_players_all_catch_but_only_one_contributes(repository):
+    def prepare(state):
+        capture.start_fever(state, NOW, Lucky())
+        spawn_fish(state, NOW, Lucky(), force=True)
+    repository.transact("g", prepare)
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        results = list(pool.map(lambda i: repository.command("g", str(i), "catch", str(i), "渔友", NOW), range(6)))
+    assert sum(result["coins"] for result in results) == 60
+    assert sum(result["contribution"] for result in results) == 5000
+    reloaded = repository.read("g")
+    assert len(reloaded["spawn"]["attempted"]) == 6
+    assert reloaded["species"]["ancestor"]["progress"] == 5000
+
+
+@pytest.mark.parametrize('operation,payload,balance,total', [('buy', {'item':'201'}, 50, 1), ('draw', {'mode':'10'},100,11)])
+def test_concurrent_economy_spends_last_balance_once(repository, operation, payload, balance, total):
+    repository.transact('g', lambda state: capture.get_player(state, 'a').update(coins=balance))
+    def attempt(index):
+        try:
+            return repository.command('g', str(index), operation, 'a', 'A', NOW, payload=payload)
+        except GameError:
+            return None
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        results = list(pool.map(attempt, range(6)))
+    assert sum(result is not None for result in results) == 1
+    player = repository.read('g')['players']['a']
+    assert player['coins'] == 0 and sum(player['bag'].values()) == total
+
+
+def test_economy_duplicate_messages_and_consumption_persist(repository):
+    repository.transact('g', lambda state: capture.get_player(state, 'a').update(coins=50))
+    for _ in range(2):
+        repository.command('g', 'buy', 'buy', 'a', 'A', NOW, payload={'item':'201'})
+        repository.command('g', 'use', 'use', 'a', 'A', NOW, payload={'item':'201'})
+    player = Repository(repository.redis, repository.prefix).read('g')['players']['a']
+    assert player['coins'] == 0 and player['bag'] == {'201':1}
+    assert player['equipment']['rod'] == '201'
+
+
+def test_concurrent_bait_consumes_last_item_once(repository):
+    repository.transact('g', lambda state: capture.get_player(state, 'a')['bag'].update({'1':1}))
+    def attempt(index):
+        try:
+            return repository.command('g', str(index), 'use', 'a', 'A', NOW, payload={'item':'1','force':True})
+        except GameError:
+            return None
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        results = list(pool.map(attempt, range(6)))
+    assert sum(result is not None for result in results) == 1
+    state = repository.read('g')
+    assert state['feeds'] == 1 and state['players']['a']['bag'] == {}

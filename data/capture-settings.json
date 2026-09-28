@@ -1,0 +1,31 @@
+{
+  "normal_lifetime": 300,
+  "fever_lifetime": 120,
+  "feed_limit": 5,
+  "rarities": {
+    "R": {
+      "difficulty": 0,
+      "reward": 10,
+      "color": "#378976",
+      "flee": 0.2,
+      "spawn_probability": 0.01,
+      "mutation_weight": 100
+    },
+    "SR": {
+      "difficulty": 30,
+      "reward": 60,
+      "color": "#6487B9",
+      "flee": 0.5,
+      "spawn_probability": 0.002,
+      "mutation_weight": 25
+    },
+    "SSR": {
+      "difficulty": 100,
+      "reward": 300,
+      "color": "#AA79B4",
+      "flee": 0.8,
+      "spawn_probability": 0.0005,
+      "mutation_weight": 5
+    }
+  }
+}

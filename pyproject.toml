@@ -7,7 +7,7 @@ name = "infinite-mutation-fishing"
 version = "0.1.0"
 description = "无限融合变异捕鱼：群指令游戏"
 requires-python = ">=3.10"
-dependencies = ["quart>=0.19,<1", "pillow>=10,<13"]
+dependencies = ["quart>=0.19,<1", "pillow>=10,<13", "redis>=5,<6"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

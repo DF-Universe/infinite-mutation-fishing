@@ -1,0 +1,233 @@
+[
+  {
+    "id": 1,
+    "name": "食料",
+    "rarity": 1,
+    "description": "使用后，在 30 分钟内，【R】鱼的出现概率将大幅提高",
+    "price": 5,
+    "type": "consumable",
+    "mutation_power": 0,
+    "buyable": true,
+    "effect": {
+      "kind": "feed",
+      "duration": 1800,
+      "bonuses": {
+        "R": 40
+      }
+    }
+  },
+  {
+    "id": 2,
+    "name": "白银食料",
+    "rarity": 2,
+    "description": "使用后，在 60 分钟内，【R】鱼和【SR】鱼的出现概率将大幅提高",
+    "price": 50,
+    "type": "consumable",
+    "mutation_power": 0,
+    "buyable": true,
+    "effect": {
+      "kind": "feed",
+      "duration": 3600,
+      "bonuses": {
+        "R": 60,
+        "SR": 100
+      }
+    }
+  },
+  {
+    "id": 3,
+    "name": "黄金食料",
+    "rarity": 3,
+    "description": "使用后，在 120 分钟内，【R】鱼、【SR】鱼和【SSR】鱼的出现概率将大幅提高",
+    "type": "consumable",
+    "mutation_power": 0,
+    "buyable": false,
+    "effect": {
+      "kind": "feed",
+      "duration": 7200,
+      "bonuses": {
+        "R": 60,
+        "SR": 120,
+        "SSR": 200
+      }
+    }
+  },
+  {
+    "id": 4,
+    "name": "渔力强化剂",
+    "rarity": 1,
+    "description": "使用后，下一次捕鱼时渔力提升 10 点",
+    "type": "consumable",
+    "mutation_power": 0,
+    "buyable": false,
+    "effect": {
+      "kind": "power",
+      "amount": 10,
+      "uses": 1
+    }
+  },
+  {
+    "id": 5,
+    "name": "白银渔力强化剂",
+    "rarity": 2,
+    "description": "使用后，下 2 次捕鱼时渔力提升 20 点，效果不与其他强化剂叠加",
+    "type": "consumable",
+    "mutation_power": 0,
+    "buyable": false,
+    "effect": {
+      "kind": "power",
+      "amount": 20,
+      "uses": 2
+    }
+  },
+  {
+    "id": 6,
+    "name": "黄金渔力强化剂",
+    "rarity": 3,
+    "description": "使用后，下 4 次捕鱼时渔力提升 40 点，效果不与其他强化剂叠加",
+    "type": "consumable",
+    "mutation_power": 0,
+    "buyable": false,
+    "effect": {
+      "kind": "power",
+      "amount": 40,
+      "uses": 4
+    }
+  },
+  {
+    "id": 7,
+    "name": "渔获加成卡",
+    "rarity": 1,
+    "description": "使用后，在 20 分钟内捕鱼时，获得的渔获提升 25%",
+    "type": "consumable",
+    "mutation_power": 0,
+    "buyable": false,
+    "effect": {
+      "kind": "reward",
+      "percent": 25,
+      "duration": 1200
+    }
+  },
+  {
+    "id": 8,
+    "name": "白银渔获加成卡",
+    "rarity": 2,
+    "description": "使用后，在 20 分钟内捕鱼时，获得的渔获提升 50%，效果不与其他加成卡叠加",
+    "type": "consumable",
+    "mutation_power": 0,
+    "buyable": false,
+    "effect": {
+      "kind": "reward",
+      "percent": 50,
+      "duration": 1200
+    }
+  },
+  {
+    "id": 9,
+    "name": "黄金渔获加成卡",
+    "rarity": 3,
+    "description": "使用后，在 20 分钟内捕鱼时，获得的渔获提升 100%，效果不与其他加成卡叠加",
+    "type": "consumable",
+    "mutation_power": 0,
+    "buyable": false,
+    "effect": {
+      "kind": "reward",
+      "percent": 100,
+      "duration": 1200
+    }
+  },
+  {
+    "id": 101,
+    "name": "机械抓手",
+    "rarity": 1,
+    "description": "能够稍微提升渔力的便捷工具；变异力 +5",
+    "type": "tool",
+    "power": 5,
+    "mutation_power": 5,
+    "buyable": false
+  },
+  {
+    "id": 102,
+    "name": "纤维编织网",
+    "rarity": 2,
+    "description": "能够提升渔力的便捷工具；变异力 +10",
+    "type": "tool",
+    "power": 10,
+    "mutation_power": 10,
+    "buyable": false
+  },
+  {
+    "id": 103,
+    "name": "探测罗盘",
+    "rarity": 2,
+    "description": "能够快速定位鱼群的工具；变异力 +20",
+    "type": "tool",
+    "power": 20,
+    "mutation_power": 20,
+    "buyable": false
+  },
+  {
+    "id": 104,
+    "name": "24 号球衣",
+    "rarity": 3,
+    "description": "充满曼巴精神的装备，能够提升工作效率，提升大量渔力；变异力 +40",
+    "type": "tool",
+    "power": 40,
+    "mutation_power": 40,
+    "buyable": false
+  },
+  {
+    "id": 105,
+    "name": "波浪形态",
+    "rarity": 4,
+    "description": "你就是水本身，能够极大幅提升渔力；变异力 +60",
+    "type": "tool",
+    "power": 60,
+    "mutation_power": 60,
+    "buyable": false
+  },
+  {
+    "id": 201,
+    "name": "青铜渔具",
+    "rarity": 1,
+    "description": "青铜打造的渔具，能够提升渔力",
+    "type": "rod",
+    "power": 10,
+    "price": 50,
+    "mutation_power": 0,
+    "buyable": true
+  },
+  {
+    "id": 202,
+    "name": "白银渔具",
+    "rarity": 2,
+    "description": "白银打造的渔具，能够提升渔力",
+    "type": "rod",
+    "power": 20,
+    "price": 200,
+    "mutation_power": 0,
+    "buyable": true
+  },
+  {
+    "id": 203,
+    "name": "黄金渔具",
+    "rarity": 3,
+    "description": "黄金打造的渔具，能够提升渔力",
+    "type": "rod",
+    "power": 40,
+    "price": 1000,
+    "mutation_power": 0,
+    "buyable": true
+  },
+  {
+    "id": 204,
+    "name": "钻石渔具",
+    "rarity": 4,
+    "description": "钻石打造的渔具，能够提升渔力",
+    "type": "rod",
+    "power": 80,
+    "price": 5000,
+    "mutation_power": 0,
+    "buyable": true
+  }
+]
