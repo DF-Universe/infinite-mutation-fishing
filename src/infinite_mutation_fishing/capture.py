@@ -156,6 +156,30 @@ def rarity_spawn_weights(state, fever):
             for rarity, setting in SETTINGS["rarities"].items() if rarity in available}
 
 
+def average_power(state, now, fever):
+    active_players = [p for p in state["players"].values() if now-p["updated_at"] < 86400]
+    return sum(fishing_power(p, fever, now) for p in active_players) / max(1, len(active_players))
+
+
+def species_weights(fishes, average):
+    return [.9 ** min(6000, max(0, (fish["difficulty"]-average)/15)) for fish in fishes]
+
+
+def spawn_odds(state, now):
+    """Per-species chance that one scheduled refresh spawns it, matching spawn_fish."""
+    fever = now < state["fever_until"]
+    rarity_weights = rarity_spawn_weights(state, fever)
+    total = sum(rarity_weights.values())
+    average = average_power(state, now, fever)
+    odds = []
+    for rarity, weight in rarity_weights.items():
+        fishes = [fish for fish in state["species"].values() if fish["rarity"] == rarity]
+        weights = species_weights(fishes, average)
+        for fish, fish_weight in zip(fishes, weights):
+            odds.append((fish, min(1, total) * weight / total * fish_weight / sum(weights)))
+    return odds
+
+
 def spawn_fish(state, now, rng, *, force=False, fish_id=None):
     refresh(state, now)
     if state["spawn"]:
@@ -173,10 +197,7 @@ def spawn_fish(state, now, rng, *, force=False, fish_id=None):
     else:
         rarity = rng.choices(list(rarity_weights), weights=list(rarity_weights.values()))[0]
         fishes = [fish for fish in state["species"].values() if fish["rarity"] == rarity]
-        active_players = [p for p in state["players"].values() if now-p["updated_at"] < 86400]
-        average = sum(fishing_power(p, fever, now) for p in active_players) / max(1, len(active_players))
-        weights = [.9 ** min(6000, max(0, (fish["difficulty"]-average)/15)) for fish in fishes]
-        fish = rng.choices(fishes, weights=weights)[0]
+        fish = rng.choices(fishes, weights=species_weights(fishes, average_power(state, now, fever)))[0]
     ttl = SETTINGS["fever_lifetime"] if fever else SETTINGS["normal_lifetime"]
     state["spawn"] = {"id": uuid.uuid4().hex, "fish_id": fish["id"], "fever": fever,
                       "expires_at": min(now+ttl, state["fever_until"]) if fever else now+ttl,

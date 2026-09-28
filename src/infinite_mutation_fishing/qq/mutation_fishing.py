@@ -129,3 +129,20 @@ panel = on_command("面板", rule=enabled_in_group, force_whitespace=True)
 async def panel_command(bot: Bot, event: Event):
     from .runtime import show_panel
     await run_action(show_panel, bot, event)
+
+
+def register_status_command(command, mode):
+    matcher = on_command(command, rule=enabled_in_group, force_whitespace=True)
+
+    @matcher.handle()
+    async def handler(bot: Bot, event: Event):
+        from .runtime import show_status
+        async def action(bot, event, group_id):
+            await show_status(bot, event, group_id, mode)
+        await run_action(action, bot, event)
+    return matcher
+
+
+status = register_status_command("状态", "self")
+pool_status = register_status_command("池子状态", "pool")
+full_status = register_status_command("完整状态", "full")

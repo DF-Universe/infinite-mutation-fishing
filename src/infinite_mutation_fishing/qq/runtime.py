@@ -12,7 +12,7 @@ from ..capture import SETTINGS, GameError, get_player, refresh, tick, start_feve
 from ..repository import get_repository
 from ..visuals import FishVisual, render_catch_card, render_spawn_card
 from ..economy import ITEMS, fishing_power, mutation_power
-from ..legacy_panels import render_shop_panel, render_inventory_panel, render_character_panel, render_gacha_panel
+from ..panels import render_shop_panel, render_inventory_panel, render_character_panel, render_gacha_panel, render_status_panel, render_birth_card
 from io import BytesIO
 from PIL import Image
 
@@ -154,6 +154,17 @@ async def show_panel(bot, event, group_id):
     await image_message(data, "mutation-panel.webp").send()
 
 
+async def show_status(bot, event, group_id, mode):
+    now = time.time()
+    user_id = event.get_user_id()
+    def render():
+        state = get_repository().read(group_id)
+        refresh(state, now)
+        return render_status_panel(state, get_player(state, user_id), now, mode)
+    data = await asyncio.to_thread(render)
+    await image_message(data, "mutation-status.webp").send()
+
+
 async def force_refresh(bot, event, group_id, fever=False):
     if event.get_user_id() not in {str(uid) for uid in get_driver().config.superusers}:
         raise GameError("仅管理员可使用测试刷鱼指令")
@@ -217,6 +228,8 @@ async def scheduled_mutations():
         try:
             child = await process_pending(repository, bot, group_id)
             if child:
-                await UniMessage.text(f"新变异诞生：{child['name']}【{child['rarity']}】\n{child['description']}\n难度 {child['difficulty']:g} · 基础金币/经验 {child['reward']}").send(target=Target(str(group_id)), bot=bot)
+                parent = (await asyncio.to_thread(repository.read, group_id))["species"][child["parent_id"]]
+                data = await asyncio.to_thread(render_birth_card, child, parent)
+                await image_message(data, "mutation-birth.webp").send(target=Target(str(group_id)), bot=bot)
         except Exception as exc:
             logger.warning(f"变异生成暂未完成，将自动重试：{group_id} ({type(exc).__name__})")
