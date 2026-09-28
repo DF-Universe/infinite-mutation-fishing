@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "infinite-mutation-fishing"
+version = "0.1.0"
+description = "无限融合变异捕鱼：群指令游戏"
+requires-python = ">=3.10"
+dependencies = ["quart>=0.19,<1"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-ra -q"
