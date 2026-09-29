@@ -11,7 +11,7 @@ from .. import GAME_NAME
 from ..capture import SETTINGS, GameError, get_player, refresh, tick, start_fever, spawn_fish
 from ..repository import get_repository
 from ..visuals import FishVisual, render_catch_card, render_spawn_card
-from ..economy import ITEMS, fishing_power, mutation_power
+from ..economy import feed_status, ITEMS, fishing_power, mutation_power
 from ..panels import render_shop_panel, render_inventory_panel, render_character_panel, render_gacha_panel, render_status_panel, render_birth_card
 from io import BytesIO
 from PIL import Image
@@ -87,14 +87,16 @@ async def show_pond(bot, event, group_id):
         player = get_player(state, event.get_user_id())
         fish = state["species"][state["spawn"]["fish_id"]] if state["spawn"] else None
         return {"player": player.copy(), "fish": fish, "spawn": state["spawn"],
-                "feeds": state["feeds"], "fever_until": state["fever_until"], "species": len(state["species"]),
+                "feed_status": feed_status(state, now), "feeds": state["feeds"], "fever_until": state["fever_until"], "species": len(state["species"]),
                 "pending": sum(j["status"] != "done" for j in state["jobs"].values())}
     result = await asyncio.to_thread(repository.transact, group_id, transition)
     player = result["player"]
     fever = now < result["fever_until"]
     lines = [f"《{GAME_NAME}》", f"Lv.{player['level']} · 金币 {player['coins']} · 经验 {player['experience']}",
              f"渔力 {fishing_power(player, fever, now)} · 变异力 {mutation_power(player)}",
-             f"今日投饵 {result['feeds']}/5 · 已有 {result['species']} 个鱼种",
+             f"今日投饵 {result['feeds']} 份 · 已有 {result['species']} 个鱼种",
+             result["feed_status"],
+             f"每天 19:30 判定鱼群，当天投满 {SETTINGS['fever_feed_target']} 份必定触发",
              f"Fever 剩余 {max(0, int((result['fever_until']-now)/60))} 分钟" if fever else "普通模式：每人可尝试一次"]
     if result["pending"]:
         lines.append(f"待生成变异：{result['pending']} 个")

@@ -117,12 +117,16 @@ def test_food_inventory_expiry_and_force_override(key):
     add_item(player, key, 3)
     use_item(state, player, key, NOW)
     assert state['feed_buff'] == {'item_id':int(key), 'bonuses':bonuses, 'expires_at':NOW+duration}
-    with pytest.raises(GameError, match='强制使用'):
+    with pytest.raises(GameError, match='间隔 5 小时'):
         use_item(state, player, key, NOW)
     assert player['bag'][key] == 2 and state['feeds'] == 1
-    use_item(state, player, key, NOW, force=True)
-    assert player['bag'][key] == 1 and state['feeds'] == 2 and player['coins'] == 0
+    with pytest.raises(GameError, match='间隔 5 小时'):
+        use_item(state, player, key, NOW, force=True)
     refresh(state, NOW+duration)
+    assert state['feed_buff'] is None
+    use_item(state, player, key, NOW+18000, force=True)
+    assert player['bag'][key] == 1 and state['feeds'] == 2 and player['coins'] == 0
+    refresh(state, NOW+18000+duration)
     assert state['feed_buff'] is None
 
 

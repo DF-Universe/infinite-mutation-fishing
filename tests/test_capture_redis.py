@@ -110,3 +110,26 @@ def test_concurrent_bait_consumes_last_item_once(repository):
     assert sum(result is not None for result in results) == 1
     state = repository.read('g')
     assert state['feeds'] == 1 and state['players']['a']['bag'] == {}
+
+
+def test_concurrent_feed_cooldown_persists_for_whole_group(repository):
+    def prepare(state):
+        for uid in range(6):
+            capture.get_player(state, str(uid))['bag']['1'] = 2
+    repository.transact('g', prepare)
+    def attempt(uid):
+        try:
+            return repository.command('g', 'first', 'use', str(uid), 'A', NOW, payload={'item': '1', 'force': True})
+        except GameError:
+            return None
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        results = list(pool.map(attempt, range(6)))
+    assert sum(result is not None for result in results) == 1
+    reloaded = Repository(repository.redis, repository.prefix)
+    state = reloaded.read('g')
+    assert state['last_feed_at'] == NOW
+    assert sum(p['bag']['1'] for p in state['players'].values()) == 11
+    with pytest.raises(GameError, match='间隔 5 小时'):
+        reloaded.command('g', 'early', 'use', '0', 'A', NOW + 17999, payload={'item': '1'})
+    reloaded.command('g', 'ready', 'use', '0', 'A', NOW + 18000, payload={'item': '1'})
+    assert reloaded.read('g')['last_feed_at'] == NOW + 18000

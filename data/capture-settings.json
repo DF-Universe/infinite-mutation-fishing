@@ -1,7 +1,8 @@
 {
   "normal_lifetime": 300,
   "fever_lifetime": 120,
-  "feed_limit": 2,
+  "fever_feed_target": 2,
+  "feed_cooldown_seconds": 18000,
   "rarities": {
     "R": {
       "difficulty": 0,

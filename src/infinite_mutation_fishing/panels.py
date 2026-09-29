@@ -10,7 +10,7 @@ import math
 from PIL import Image, ImageDraw
 
 from .capture import SETTINGS, average_power, spawn_odds
-from .economy import ITEMS, expire_buffs, fishing_power, mutation_power
+from .economy import feed_status, ITEMS, expire_buffs, fishing_power, mutation_power
 from .visuals import BACKGROUND, INK, MUTED, TEAL, WIDTH, FishVisual, _card, _fish_icon, _fish_name, _fit, _font, _rarity, _text, _webp
 
 MARGIN = 28
@@ -342,7 +342,8 @@ def status_view(state, player, now, mode):
     odds = sorted(spawn_odds(state, now), key=lambda row: -row[1])
     return {
         "mode": mode, "fever": fever, "fever_left": _minutes_left(state["fever_until"] - now), "buffs": buffs,
-        "average": average_power(state, now, fever), "feeds": state["feeds"], "feed_limit": SETTINGS["feed_limit"],
+        "average": average_power(state, now, fever), "feeds": state["feeds"], "feed_status": feed_status(state, now),
+        "fever_feed_target": SETTINGS["fever_feed_target"],
         "species": len(state["species"]), "current": current,
         "feed": None if not feed else (ITEMS[str(feed["item_id"])], _bonus_text(feed["bonuses"]),
                                         _minutes_left(feed["expires_at"] - now)),
@@ -377,6 +378,7 @@ def _pool_rows(view):
         rows.append(("fever",))
     rows.append(("current",))
     rows.append(("feed",))
+    rows.append(("feed_cooldown",))
     if view["pending"]:
         rows.append(("pending",))
     return rows
@@ -412,7 +414,7 @@ def create_status_panel(view):
             stat_w = (INNER - GAP * 2) // 3
             for index, (label, value, fg, tint) in enumerate([
                 ("平均渔力", f"{view['average']:.1f}", TEAL, "#E3F2EB"),
-                ("今日投饵", f"{view['feeds']} / {view['feed_limit']}", GOLD, GOLD_TINT),
+                ("今日投饵", f"{view['feeds']} 份", GOLD, GOLD_TINT),
                 ("已诞生鱼种", f"{view['species']}", "#9064A8", "#F3ECF7"),
             ]):
                 x = MARGIN + index * (stat_w + GAP)
@@ -453,6 +455,10 @@ def create_status_panel(view):
                         item, bonus, left = view["feed"]
                         _badge(draw, (52, row_y + 4, 104, row_y + 56), item)
                         _status_row(draw, row_y, f"{item['name']}生效中", bonus, left, rarity_colors(item["rarity"])[0])
+                elif row == "feed_cooldown":
+                    _text_badge(draw, (52, row_y + 4, 104, row_y + 56), "饵", TEAL, SOFT)
+                    _status_row(draw, row_y, view["feed_status"],
+                                f"每天 19:30 判定鱼群，当天投满 {view['fever_feed_target']} 份必定触发")
                 elif row == "pending":
                     _text_badge(draw, (52, row_y + 4, 104, row_y + 56), "变异", "#9064A8", "#F3ECF7")
                     _status_row(draw, row_y, f"{view['pending']} 个新鱼种正在诞生", "生成完成后会在群里公布")

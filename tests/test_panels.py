@@ -119,3 +119,22 @@ def test_birth_card_renders_with_and_without_profiles():
     assert short.width == long.width == 800
     assert long.height > short.height
     assert len(panels.wrap(child['description'], 17, 600, 4)) == 4
+
+
+def test_pool_feed_status_shows_cooldown_without_daily_limit():
+    from infinite_mutation_fishing.capture import initial_state, get_player, refresh
+    from infinite_mutation_fishing.economy import use_item
+    from infinite_mutation_fishing.panels import status_view, create_status_panel
+    state = initial_state()
+    refresh(state, NOW)
+    player = get_player(state, 'a')
+    player['bag']['1'] = 1
+    use_item(state, player, '1', NOW)
+    refresh(state, NOW + 3600)
+    view = status_view(state, player, NOW + 3600, 'pool')
+    assert view['feed'] is None
+    assert view['feed_status'] == '投饵冷却剩余 240 分钟'
+    assert 'feed_limit' not in view
+    assert view['fever_feed_target'] == 2
+    assert create_status_panel(view).height > 0
+    assert status_view(state, player, NOW + 18000, 'pool')['feed_status'] == '可以投饵（间隔 5 小时）'

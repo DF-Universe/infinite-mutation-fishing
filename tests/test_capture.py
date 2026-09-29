@@ -177,9 +177,9 @@ def test_daily_feed_fever_and_level_rules():
     state = initial_state()
     player = get_player(state, "a", "A")
     player["coins"] = 100
-    player["bag"]["1"] = SETTINGS["feed_limit"] + 1
-    for _ in range(SETTINGS["feed_limit"]):
-        apply_command(state, "use", "a", "A", NOW, payload={"item": "1", "force": True})
+    player["bag"]["1"] = SETTINGS["fever_feed_target"] + 1
+    for index in range(SETTINGS["fever_feed_target"]):
+        apply_command(state, "use", "a", "A", NOW + index * 18000, payload={"item": "1", "force": True})
     with pytest.raises(GameError):
         apply_command(state, "use", "a", "A", NOW, payload={"item": "1", "force": True})
     at_1930 = NOW + (7*60+30)*60
@@ -276,3 +276,55 @@ def test_sign_in_weights_related_fish_down_and_ignores_buffs():
     assert abs(seen["mine"] / seen["ancestor"] - SETTINGS["sign_in"]["related_weight"]) < 1e-9
     assert player["buffs"]["power"]["uses"] == 1
     assert result["coins"] == result["fish"]["reward"] * result["reward_multiplier"]
+
+
+def test_feed_cooldown_shared_across_players_and_midnight():
+    state = initial_state()
+    start = NOW + 11 * 3600
+    for uid, item in [('a', '1'), ('b', '3')]:
+        get_player(state, uid)['bag'][item] = 4
+    apply_command(state, 'use', 'a', 'A', start, payload={'item': '1'})
+    refresh(state, start + 3600)
+    assert state['feeds'] == 0
+    for force in (False, True):
+        with pytest.raises(GameError, match='间隔 5 小时'):
+            apply_command(state, 'use', 'b', 'B', start + 17999, payload={'item': '3', 'force': force})
+    assert state['players']['b']['bag']['3'] == 4
+    assert state['last_feed_at'] == start
+    apply_command(state, 'use', 'b', 'B', start + 18000, payload={'item': '3'})
+    assert state['last_feed_at'] == start + 18000
+
+
+def test_feed_has_no_daily_count_limit():
+    state = initial_state()
+    get_player(state, 'a')['bag']['1'] = 4
+    start = NOW - 12 * 3600
+    for index in range(4):
+        apply_command(state, 'use', 'a', 'A', start + index * 18000, payload={'item': '1'})
+    assert state['feeds'] == 4
+    assert state['players']['a']['bag'] == {}
+
+
+@pytest.mark.parametrize('feeds,roll,started', [(0, 0, False), (1, .49, True), (1, .5, False), (2, .999, True), (4, .999, True)])
+def test_fever_feed_target_at_1930(feeds, roll, started):
+    state = initial_state()
+    refresh(state, NOW)
+    state['feeds'] = feeds
+    rng = Lucky()
+    rng.random = lambda: roll
+    assert tick(state, NOW + 7 * 3600 + 29 * 60, rng)['fever_started'] is None
+    result = tick(state, NOW + 7 * 3600 + 30 * 60, rng)
+    assert (result['fever_started'] is not None) == started
+    assert tick(state, NOW + 7 * 3600 + 31 * 60, rng)['fever_started'] is None
+
+
+def test_legacy_feed_cooldown_migrates_before_buff_expiry():
+    state = initial_state()
+    del state['last_feed_at']
+    state['feed_buff'] = {'item_id': 2, 'bonuses': {'R': 60, 'SR': 100}, 'expires_at': NOW + 2700}
+    refresh(state, NOW + 3600)
+    assert state['last_feed_at'] == NOW
+    assert state['feed_buff'] is None
+    get_player(state, 'a')['bag']['1'] = 1
+    with pytest.raises(GameError, match='间隔 5 小时'):
+        apply_command(state, 'use', 'a', 'A', NOW + 3600, payload={'item': '1'})

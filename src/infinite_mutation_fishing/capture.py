@@ -13,7 +13,7 @@ from .palette import mutation_palette
 from .balance import birth_stats
 from .errors import GameError
 from .economy import (
-    ensure_inventory, fishing_power, mutation_power, reward_percent,
+    ITEMS, ensure_inventory, fishing_power, mutation_power, reward_percent,
     spend_attempt_buff, buy_item, draw_items, use_item,
 )
 
@@ -26,6 +26,10 @@ def upgrade_state(state):
     if "feed_buff" not in state:
         expiry = state.pop("feed_until", 0)
         state["feed_buff"] = {"item_id": 1, "bonuses": {"R": 40}, "expires_at": expiry} if expiry else None
+    if "last_feed_at" not in state:
+        buff = state["feed_buff"]
+        state["last_feed_at"] = (buff["expires_at"] - ITEMS[str(buff["item_id"])]["effect"]["duration"]
+                                 if buff else None)
     for player in state["players"].values():
         ensure_inventory(player)
     for fish in state["species"].values():
@@ -48,7 +52,7 @@ def initial_state():
             "contributors": [], "progress": 0, "contributions": {}, "round": 0, "pending": None,
             "difficulty": 0, "reward": 10}
     return {"species": {root["id"]: root}, "players": {}, "spawn": None,
-            "fever_until": 0, "day": "", "feeds": 0, "feed_buff": None,
+            "fever_until": 0, "day": "", "feeds": 0, "feed_buff": None, "last_feed_at": None,
             "fever_checked_day": "", "jobs": {}, "processed": {}, "next_tick": 0}
 
 
@@ -293,7 +297,7 @@ def tick(state, now, rng):
     fever_started = None
     if local.hour == 19 and local.minute >= 30 and state["fever_checked_day"] != state["day"]:
         state["fever_checked_day"] = state["day"]
-        if now >= state["fever_until"] and rng.random() < state["feeds"]/SETTINGS["feed_limit"]:
+        if now >= state["fever_until"] and rng.random() < min(1, state["feeds"]/SETTINGS["fever_feed_target"]):
             fever_started = start_fever(state, now, rng)
     result = None if 1 <= local.hour < 8 else spawn_fish(state, now, rng)
     if result is None and state["spawn"] and not state["spawn"].get("announced", False):

@@ -3,6 +3,7 @@
 from collections import Counter
 from copy import deepcopy
 import json
+import math
 from pathlib import Path
 
 from .errors import GameError
@@ -10,7 +11,24 @@ from .errors import GameError
 DATA = Path(__file__).resolve().parents[2] / "data"
 ITEMS = {str(item["id"]): item for item in json.loads((DATA / "items.json").read_text(encoding="utf-8"))}
 GACHA = json.loads((DATA / "gacha.json").read_text(encoding="utf-8"))
-FEED_LIMIT = json.loads((DATA / "capture-settings.json").read_text(encoding="utf-8"))["feed_limit"]
+FEED_COOLDOWN = json.loads((DATA / "capture-settings.json").read_text(encoding="utf-8"))["feed_cooldown_seconds"]
+
+
+def feed_cooldown_remaining(state, now):
+    last = state.get("last_feed_at")
+    if last is None and state.get("feed_buff"):
+        buff = state["feed_buff"]
+        last = buff["expires_at"] - ITEMS[str(buff["item_id"])]["effect"]["duration"]
+    return max(0, last + FEED_COOLDOWN - now) if last is not None else 0
+
+
+def feed_status(state, now):
+    remaining = feed_cooldown_remaining(state, now)
+    if now < state["fever_until"]:
+        return "Fever 期间无法投饵"
+    if remaining:
+        return f"投饵冷却剩余 {math.ceil(remaining / 60)} 分钟"
+    return "可以投饵（间隔 5 小时）"
 
 
 def ensure_inventory(player):
@@ -127,14 +145,16 @@ def use_item(state, player, identifier, now, *, force=False):
     if kind == "feed":
         if now < state["fever_until"]:
             raise GameError("Fever 期间无法投放食料")
-        if state["feeds"] >= FEED_LIMIT:
-            raise GameError(f"鱼已经吃饱了，明天再喂吧（每天最多 {FEED_LIMIT} 份）")
+        remaining = feed_cooldown_remaining(state, now)
+        if remaining:
+            raise GameError(f"两次投饵需间隔 5 小时，还需等待 {math.ceil(remaining / 60)} 分钟")
         current = state.get("feed_buff")
         if not force and current and current["expires_at"] > now:
             raise GameError(f"当前已有食料效果；确定覆盖请发送「强制使用 {item['id']}」")
         consume_item(player, key)
         state["feed_buff"] = {"item_id": item["id"], "bonuses": effect["bonuses"].copy(),
                               "expires_at": now+effect["duration"]}
+        state["last_feed_at"] = now
         state["feeds"] += 1
         return {"kind": "feed", "item": deepcopy(item), "feeds": state["feeds"]}
     consume_item(player, key)
