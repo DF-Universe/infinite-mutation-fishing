@@ -234,6 +234,8 @@ async def scheduled_tick():
             result = await asyncio.to_thread(repository.transact, group_id,
                                              lambda state: tick(state, time.time(), random.SystemRandom()))
             if result:
+                if result["fish_left"]:
+                    await UniMessage.text("鱼离开了...").send(target=Target(str(group_id)), bot=bot)
                 if result["fever_ended"]:
                     await UniMessage.text("鱼群散去了！").send(target=Target(str(group_id)), bot=bot)
                 if result["fever_started"]:

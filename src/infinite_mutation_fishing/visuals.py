@@ -56,12 +56,7 @@ def _text(draw, position, text, size=20, fill=INK, bold=False):
 
 
 def _fish_name(draw, position, text, size):
-    font = _font(size, True)
-    x, top = position
-    bottom = top + size
-    for character in text:
-        draw.text((x, bottom), character, font=font, fill=INK, anchor="lb")
-        x += font.getlength(character)
+    draw.text(position, str(text), font=_font(size, True), fill=INK)
 
 
 def _fit(text, size, max_width, bold=False):

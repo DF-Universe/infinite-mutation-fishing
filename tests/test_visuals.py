@@ -104,13 +104,6 @@ def test_rarity_letter_and_diamond_share_visual_center():
     assert abs((icon[1]+icon[3])/2 - (letter[1]+letter[3])/2) <= 1
 
 
-def test_ancestor_name_glyphs_share_visible_bottom():
-    canvas = Image.new("L", (160, 60))
-    visuals._fish_name(ImageDraw.Draw(canvas), (0, 0), "初源鱼", 30)
-    bottoms = [canvas.crop((i*30, 0, (i+1)*30, 60)).getbbox()[3] for i in range(3)]
-    assert max(bottoms) - min(bottoms) <= 1
-
-
 @pytest.mark.parametrize("success", [True, False])
 def test_actual_success_rate_is_shown_for_success_and_failure(fish, monkeypatch, success):
     shown = []

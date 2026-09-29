@@ -328,3 +328,18 @@ def test_legacy_feed_cooldown_migrates_before_buff_expiry():
     get_player(state, 'a')['bag']['1'] = 1
     with pytest.raises(GameError, match='间隔 5 小时'):
         apply_command(state, 'use', 'a', 'A', NOW + 3600, payload={'item': '1'})
+
+
+def test_normal_fish_leave_is_reported_once():
+    state = ready()
+    state["spawn"]["announced"] = True
+    expiry = state["spawn"]["expires_at"]
+    assert tick(state, expiry - 1, Lucky())["fish_left"] is False
+    catch_fish(state, "a", "A", expiry - 1, Lucky())
+    assert tick(state, expiry + 60, Lucky())["fish_left"] is True
+    assert tick(state, expiry + 120, Lucky())["fish_left"] is False
+    fever = ready(fever=True)
+    fever["spawn"]["announced"] = True
+    assert tick(fever, fever["spawn"]["expires_at"], Lucky())["fish_left"] is False
+    silent = ready()
+    assert tick(silent, silent["spawn"]["expires_at"], Lucky())["fish_left"] is False

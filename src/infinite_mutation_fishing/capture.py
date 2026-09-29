@@ -65,6 +65,8 @@ def refresh(state, now):
         state["feed_buff"] = None
     spawn = state["spawn"]
     if spawn and (now >= spawn["expires_at"] or (spawn["fever"] and now >= state["fever_until"])):
+        if not spawn["fever"] and spawn.get("announced"):
+            state["fish_left"] = True
         state["spawn"] = None
 
 
@@ -293,6 +295,7 @@ def tick(state, now, rng):
     if state.setdefault("fever_active", now < state["fever_until"]) and now >= state["fever_until"]:
         state["fever_active"] = False
         fever_ended = True
+    fish_left = state.pop("fish_left", False)
     local = datetime.fromtimestamp(now, ZoneInfo("Asia/Shanghai"))
     fever_started = None
     if local.hour == 19 and local.minute >= 30 and state["fever_checked_day"] != state["day"]:
@@ -304,7 +307,8 @@ def tick(state, now, rng):
         current = state["spawn"]
         result = {"fish": deepcopy(state["species"][current["fish_id"]]),
                   "fever": current["fever"], "spawn_id": current["id"]}
-    return {"spawn": result, "fever_started": fever_started, "fever_ended": fever_ended}
+    return {"spawn": result, "fever_started": fever_started, "fever_ended": fever_ended,
+            "fish_left": fish_left}
 
 
 def finish_mutation(state, job_id, generated):
