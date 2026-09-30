@@ -260,7 +260,7 @@ button { font: inherit; color: inherit; }
   const phone = matchMedia('(max-width: 860px)');
   const PAD_X = phone.matches ? 116 : 176;
   const hint = document.getElementById('hint');
-  let uid = 0, byId = new Map(), children = new Map(), nodes = new Map(), edgeGroups = [], selected = null;
+  let uid = 0, byId = new Map(), children = new Map(), nodes = new Map(), edgeGroups = [], selected = null, labels = {};
 
   const el = (tag, cls, text) => {
     const node = document.createElement(tag);
@@ -275,28 +275,11 @@ button { font: inherit; color: inherit; }
   };
   const safe = (color, fallback = '#CAD6D1') => HEX.test(color || '') ? color : fallback;
 
-  function fishSvg(colors) {
-    const id = 'clip' + (++uid);
-    const body = safe(colors.body), marks = safe(colors.markings), fins = safe(colors.fins);
+  /* The server draws every fish (shared with the QQ cards); only the clip-path id is made unique here. */
+  function fishSvg(fish) {
     const wrap = document.createElement('div');
-    wrap.innerHTML = `<svg class="fish-svg" viewBox="120 45 550 340" aria-hidden="true">
-      <defs><clipPath id="${id}"><path d="M140 224 C140 145 216 102 320 108 C424 110 484 161 540 224 C484 282 424 333 320 338 C216 344 140 300 140 224Z"/></clipPath></defs>
-      <g stroke="#304B50" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
-        <path fill="${fins}" d="M308 118 Q331 60 386 61 Q379 109 411 142Z"/>
-        <path fill="${fins}" d="M326 319 Q352 380 405 372 L414 299Z"/>
-        <g class="tail"><path fill="${fins}" d="M516 224 Q572 174 639 148 Q630 194 651 224 Q630 254 639 300 Q572 274 516 224Z"/><path fill="none" stroke-width="3" d="M566 224 L613 224"/></g>
-        <path fill="${body}" d="M140 224 C140 145 216 102 320 108 C424 110 484 161 540 224 C484 282 424 333 320 338 C216 344 140 300 140 224Z"/>
-        <g clip-path="url(#${id})" fill="none" stroke="${marks}" stroke-width="29">
-          <path d="M326 105 Q285 157 318 198"/><path d="M399 112 Q351 162 384 204"/><path d="M465 135 Q420 177 450 211"/>
-        </g>
-        <path fill="none" d="M140 224 C140 145 216 102 320 108 C424 110 484 161 540 224 C484 282 424 333 320 338 C216 344 140 300 140 224Z"/>
-        <path fill="${fins}" d="M331 239 Q384 219 389 263 Q359 279 331 239Z"/>
-        <path fill="none" stroke-width="4" d="M276 220 Q285 243 272 260"/>
-        <ellipse fill="#FFFFFF" cx="213" cy="207" rx="23" ry="26" stroke-width="4"/>
-        <ellipse fill="#304B50" cx="206" cy="209" rx="10" ry="13" stroke="none"/>
-        <circle fill="#FFFFFF" cx="204" cy="204" r="3.5" stroke="none"/>
-        <path fill="none" stroke-width="4" d="M145 247 Q163 259 181 247"/>
-      </g></svg>`;
+    wrap.innerHTML = `<svg class="fish-svg" viewBox="${fish.drawing.view_box}" aria-hidden="true">${
+      fish.drawing.markup.replaceAll('CLIP_ID', 'clip' + (++uid))}</svg>`;
     return wrap.firstElementChild;
   }
 
@@ -423,7 +406,7 @@ button { font: inherit; color: inherit; }
       node.style.setProperty('--delay', reduced ? '0s' : `${0.2 + item.generation * 0.45}s`);
       node.append(el('span', 'halo'));
       const swimmer = el('span', 'swimmer');
-      swimmer.append(item.kind === 'fish' ? fishSvg(item.colors) : el('span', 'egg'));
+      swimmer.append(item.kind === 'fish' ? fishSvg(item) : el('span', 'egg'));
       node.append(swimmer);
       const tag = el('span', 'tag');
       tag.append(rarityPill(item.rarity, item.rarity_color), el('span', 'name', item.name));
@@ -468,6 +451,27 @@ button { font: inherit; color: inherit; }
     return row;
   }
 
+  function shapeSection(fish, parent, first, second) {
+    const shape = fish.shape;
+    const wrap = section('外形基因');
+    const carried = (profile, which) => profile ? `由${which}群友 ${profile.name} 带来` : '初源外形';
+    wrap.append(geneRow(fish.colors.body, `${labels.body[shape.body]}体型`, carried(first, '第一位')));
+    wrap.append(geneRow(fish.colors.markings, `${labels.pattern[shape.pattern]}花纹`, carried(second, '第二位')));
+    for (const gene of ['tail', 'dorsal']) {
+      const label = labels[gene][shape[gene]];
+      const source = !parent ? '初源外形'
+        : shape.mutations.includes(gene)
+          ? `突变！亲代 ${parent.name} 是${labels[gene][parent.shape[gene]]}`
+          : `继承自亲代 ${parent.name}`;
+      wrap.append(geneRow(fish.colors.fins, label, source));
+    }
+    if (shape.extra) {
+      const source = parent && parent.shape.extra === shape.extra ? `继承自亲代 ${parent.name}` : `${fish.rarity} 鱼种才会长出的附件`;
+      wrap.append(geneRow(fish.colors.fins, labels.extra[shape.extra], source));
+    }
+    return wrap;
+  }
+
   function renderFishPanel(fish) {
     panel.replaceChildren();
     const close = el('button', 'panel-close', '收起');
@@ -475,7 +479,7 @@ button { font: inherit; color: inherit; }
     close.addEventListener('click', () => panel.classList.remove('open'));
     const hero = el('div', 'hero-fish');
     const swimmer = el('div', 'swimmer');
-    swimmer.append(fishSvg(fish.colors));
+    swimmer.append(fishSvg(fish));
     hero.append(swimmer);
     const subline = el('div', 'subline');
     subline.append(rarityPill(fish.rarity, fish.rarity_color), el('span', '', `第 ${fish.generation} 代`));
@@ -511,6 +515,7 @@ button { font: inherit; color: inherit; }
       genes.append(geneRow(fish.colors.fins, '鱼鳍', '初源本色'));
     }
     panel.append(genes);
+    panel.append(shapeSection(fish, parent, first, second));
 
     if (parent) {
       const blood = section('鱼鳍血统');
@@ -660,6 +665,7 @@ button { font: inherit; color: inherit; }
       showNotice('没有找到这片水域', error.message.includes('族谱') ? error.message : '族谱读取失败，请稍后刷新页面重试。');
       return;
     }
+    labels = data.labels;
     data.species.forEach(fish => byId.set(fish.id, fish));
     const { stats } = data;
     census.textContent = `共 ${stats.generations} 代，${stats.species} 种鱼，${stats.contributors} 位群友参与`

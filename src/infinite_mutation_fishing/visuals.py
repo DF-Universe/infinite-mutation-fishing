@@ -9,6 +9,9 @@ from pathlib import Path
 import re
 
 from PIL import Image, ImageDraw, ImageFont
+import resvg_py
+
+from .shapes import GENE_KEYS, fish_svg
 
 INK = "#304B50"
 MUTED = "#748781"
@@ -24,6 +27,7 @@ class FishVisual:
     rarity: str
     rarity_color: str = "#9861B3"
     generation: int = 0
+    shape: tuple = ()
 
     def __post_init__(self):
         if not self.name.strip() or not self.rarity.strip():
@@ -69,89 +73,12 @@ def _fit(text, size, max_width, bold=False):
     return text + "…"
 
 
-def _path(start, segments):
-    points = [start]
-    for segment in segments:
-        previous = points[-1]
-        if len(segment) == 2:
-            points.append(segment)
-        elif len(segment) == 4:
-            x1, y1, x2, y2 = segment
-            for i in range(1, 21):
-                t = i / 20
-                u = 1 - t
-                points.append((u*u*previous[0] + 2*u*t*x1 + t*t*x2,
-                               u*u*previous[1] + 2*u*t*y1 + t*t*y2))
-        else:
-            x1, y1, x2, y2, x3, y3 = segment
-            for i in range(1, 25):
-                t = i / 24
-                u = 1 - t
-                points.append((u**3*previous[0] + 3*u*u*t*x1 + 3*u*t*t*x2 + t**3*x3,
-                               u**3*previous[1] + 3*u*u*t*y1 + 3*u*t*t*y2 + t**3*y3))
-    return points
-
-
-@lru_cache(maxsize=128)
-def _fish_icon(colors: tuple[str, str, str], width: int) -> Image.Image:
-    body, markings, fins = colors
-    scale = width * 2 / 600
-    height = round(width * 360 / 600)
-    image = Image.new("RGBA", (width * 2, height * 2))
-    draw = ImageDraw.Draw(image)
-
-    def coords(points):
-        return [((x - 105) * scale, (y - 40) * scale) for x, y in points]
-
-    def shape(start, segments, fill):
-        points = coords(_path(start, segments))
-        draw.polygon(points, fill=fill)
-        draw.line(points + [points[0]], fill=INK, width=max(1, round(6 * scale)), joint="curve")
-
-    def line(start, segments, fill=INK, stroke=4):
-        points = coords(_path(start, segments))
-        draw.line(points, fill=fill, width=max(1, round(stroke * scale)), joint="curve")
-
-    def ellipse(box, fill, outline=None, stroke=4):
-        converted = ((box[0] - 105)*scale, (box[1] - 40)*scale,
-                     (box[2] - 105)*scale, (box[3] - 40)*scale)
-        draw.ellipse(converted, fill=fill, outline=outline, width=max(1, round(stroke*scale)))
-
-    shape((308, 118), [(331, 60, 386, 61), (379, 109, 411, 142)], fins)
-    shape((326, 319), [(352, 380, 405, 372), (414, 299)], fins)
-    shape((516, 224), [(572, 174, 639, 148), (630, 194, 651, 224),
-                       (630, 254, 639, 300), (572, 274, 516, 224)], fins)
-    body_points = _path((140, 224), [(140, 145, 216, 102, 320, 108),
-                                   (424, 110, 484, 161, 540, 224),
-                                   (484, 282, 424, 333, 320, 338),
-                                   (216, 344, 140, 300, 140, 224)])
-    draw.polygon(coords(body_points), fill=body)
-    mask = Image.new("L", image.size)
-    ImageDraw.Draw(mask).polygon(coords(body_points), fill=255)
-    stripes = Image.new("RGBA", image.size)
-    stripes_draw = ImageDraw.Draw(stripes)
-    for start, segment in [((326, 105), (285, 157, 318, 198)),
-                           ((399, 112), (351, 162, 384, 204)),
-                           ((465, 135), (420, 177, 450, 211))]:
-        points = coords(_path(start, [segment]))
-        stripe_width = round(29 * scale)
-        stripes_draw.line(points, fill=markings, width=stripe_width, joint="curve")
-        radius = stripe_width / 2
-        for x, y in points:
-            stripes_draw.ellipse((x-radius, y-radius, x+radius, y+radius), fill=markings)
-    clipped = Image.new("RGBA", image.size)
-    clipped.paste(stripes, (0, 0), mask)
-    image.alpha_composite(clipped)
-    draw = ImageDraw.Draw(image)
-    draw.line(coords(body_points), fill=INK, width=max(1, round(6*scale)), joint="curve")
-    shape((331, 239), [(384, 219, 389, 263), (359, 279, 331, 239)], fins)
-    line((276, 220), [(285, 243, 272, 260)])
-    ellipse((190, 181, 236, 233), "white", INK)
-    ellipse((196, 196, 216, 222), INK)
-    ellipse((200.5, 200.5, 207.5, 207.5), "white")
-    line((145, 247), [(163, 259, 181, 247)])
-    line((566, 224), [(613, 224)], stroke=3)
-    return image.resize((width, height), Image.Resampling.LANCZOS)
+@lru_cache(maxsize=256)
+def _fish_icon(colors: tuple[str, str, str], width: int, shape: tuple = ()) -> Image.Image:
+    """Rasterize the shared SVG drawing; shape is a shapes.shape_key tuple (empty = ancestor)."""
+    svg = fish_svg(colors, dict(zip(GENE_KEYS, shape)), width=width)
+    png = resvg_py.svg_to_bytes(svg_string=svg, skip_system_fonts=True)
+    return Image.open(BytesIO(bytes(png))).convert("RGBA")
 
 
 def _card(height, title, eyebrow):
@@ -188,7 +115,7 @@ def render_spawn_card(fish: FishVisual, *, fever: bool = False) -> bytes:
     _text(draw, (660, 146), f"第 {fish.generation} 代" if fish.generation < 10000 else "远代鱼种", 16, MUTED)
     for x, y, r in [(147, 244, 10), (649, 285, 7), (615, 223, 4)]:
         draw.ellipse((x-r, y-r, x+r, y+r), outline="#DCEAE4", width=2)
-    icon = _fish_icon(tuple(fish.colors), 430)
+    icon = _fish_icon(tuple(fish.colors), 430, fish.shape)
     image.paste(icon, (185, 162), icon)
     name = _fit(fish.name, 30, 660, True)
     _fish_name(draw, ((WIDTH - _font(30, True).getlength(name))/2, 427), name, 30)
@@ -228,7 +155,7 @@ def render_catch_card(
         raise ValueError("Mutation progress must be between 0 and 100 percent")
     image, draw = _card(648 if progress is not None else 568, title or ("捕鱼成功" if success else "鱼儿没上钩"), eyebrow)
     draw.rounded_rectangle((28, 114, 772, 313), radius=24, fill="white")
-    icon = _fish_icon(tuple(fish.colors), 255)
+    icon = _fish_icon(tuple(fish.colors), 255, fish.shape)
     image.paste(icon, (42, 131), icon)
     _text(draw, (329, 137), _fit(player_name, 17, 391), 17, MUTED)
     _fish_name(draw, (329, 170), _fit(fish.name, 29, 391, True), 29)

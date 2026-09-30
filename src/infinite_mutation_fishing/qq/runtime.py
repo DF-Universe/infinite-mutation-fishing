@@ -10,6 +10,7 @@ from nonebot_plugin_alconna import UniMessage, Target, Other
 from .. import GAME_NAME
 from ..capture import SETTINGS, GameError, get_player, refresh, tick, start_fever, spawn_fish
 from ..repository import get_repository
+from ..shapes import shape_key
 from ..visuals import FishVisual, render_catch_card, render_spawn_card
 from ..economy import feed_status, ITEMS, fishing_power, mutation_power
 from ..panels import render_shop_panel, render_inventory_panel, render_character_panel, render_gacha_panel, render_status_panel, render_birth_card
@@ -19,7 +20,8 @@ from PIL import Image
 
 def appearance(fish):
     return FishVisual(fish["name"], tuple(fish["colors"][key] for key in ("body", "markings", "fins")),
-                      fish["rarity"], SETTINGS["rarities"][fish["rarity"]]["color"], fish["generation"])
+                      fish["rarity"], SETTINGS["rarities"][fish["rarity"]]["color"], fish["generation"],
+                      shape_key(fish.get("shape")))
 
 
 def image_message(data, filename):

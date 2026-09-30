@@ -40,5 +40,18 @@
       2,
       10
     ]
+  },
+  "shape": {
+    "signature_chance": 0.6,
+    "fin_mutation": {
+      "R": 0.2,
+      "SR": 0.35,
+      "SSR": 0.5
+    },
+    "extra_chance": {
+      "R": 0,
+      "SR": 0.4,
+      "SSR": 1
+    }
   }
 }

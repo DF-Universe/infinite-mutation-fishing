@@ -10,6 +10,7 @@ import uuid
 from zoneinfo import ZoneInfo
 
 from .palette import mutation_palette
+from .shapes import ANCESTOR_SHAPE, inherit_shape
 from .balance import birth_stats
 from .errors import GameError
 from .economy import (
@@ -36,6 +37,16 @@ def upgrade_state(state):
         old_difficulty, old_reward = {"R": (0, 10), "SR": (10, 25), "SSR": (25, 60)}[fish["rarity"]]
         fish.setdefault("difficulty", old_difficulty)
         fish.setdefault("reward", old_reward)
+    for fish in sorted(state["species"].values(), key=lambda fish: fish["generation"]):
+        if "shape" not in fish:
+            parent = state["species"].get(fish.get("parent_id"))
+            fish["shape"] = (inherit_shape(parent["shape"], fish["contributors"], fish["rarity"],
+                                           random.Random(fish["id"]), SETTINGS["shape"])
+                             if parent else dict(ANCESTOR_SHAPE))
+    for job in state["jobs"].values():
+        if job["status"] != "done" and "shape" not in job:
+            job["shape"] = inherit_shape(state["species"][job["parent_id"]]["shape"], job.get("contributors", []),
+                                         job["rarity"], random.Random(job["id"]), SETTINGS["shape"])
     for job in state["jobs"].values():
         if job["status"] != "done" and "birth_stats" not in job:
             levels = [state["players"][uid]["level"] for uid in job["contributors"]]
@@ -48,7 +59,7 @@ def day_at(now):
 
 
 def initial_state():
-    root = {**deepcopy(ANCESTOR), "rarity": "R", "generation": 0, "parent_id": None,
+    root = {**deepcopy(ANCESTOR), "shape": dict(ANCESTOR_SHAPE), "rarity": "R", "generation": 0, "parent_id": None,
             "contributors": [], "progress": 0, "contributions": {}, "round": 0, "pending": None,
             "difficulty": 0, "reward": 10}
     return {"species": {root["id"]: root}, "players": {}, "spawn": None,
@@ -143,6 +154,7 @@ def add_contribution(state, spawn, species, user_id, player, now, rng, multiplie
         job = state["jobs"][job_id]
         job["birth_stats"] = birth_stats(job["rarity"], [state["players"][uid]["level"] for uid in winners], SETTINGS["rarities"])
         job["level_snapshot_source"] = "mutation_trigger"
+        job["shape"] = inherit_shape(species["shape"], winners, job["rarity"], rng, SETTINGS["shape"])
         species.update(progress=0, contributions={}, pending=job_id)
         note = "变异已触发！子代生成任务已保存"
     return actual, note, job_id
@@ -321,7 +333,7 @@ def finish_mutation(state, job_id, generated):
         raise GameError("变异任务与亲代状态不一致")
     colors = mutation_palette(generated["colors"][0], generated["colors"][1], parent["colors"])
     child = {"id": job_id, "name": generated["name"], "description": generated["description"],
-             "colors": colors, "rarity": job["rarity"], "generation": parent["generation"]+1,
+             "colors": colors, "shape": deepcopy(job["shape"]), "rarity": job["rarity"], "generation": parent["generation"]+1,
              "parent_id": parent["id"], "contributors": job["contributors"],
              "profiles": generated["profiles"], "progress": 0, "contributions": {},
              "round": 0, "pending": None, **job["birth_stats"]}

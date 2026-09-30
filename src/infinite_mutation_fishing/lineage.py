@@ -3,6 +3,7 @@
 import hashlib
 
 from .capture import SETTINGS
+from .shapes import LABELS, fish_parts, normalize, view_box
 
 PUBLIC_BASE = "https://chiyuki.diving-fish.com"
 TOKEN_SALT = "infinite-mutation-fishing:lineage:"
@@ -34,6 +35,12 @@ def _profiles(fish):
              "fallback": bool(profile.get("color_fallback"))} for profile in fish.get("profiles", [])]
 
 
+def _drawing(fish):
+    """SVG body for the page; the page swaps CLIP_ID for a per-instance clip-path id."""
+    markup, bounds = fish_parts(fish["colors"], fish.get("shape"), clip_id="CLIP_ID", tail_class="tail")
+    return {"markup": markup, "view_box": " ".join(f"{value:.1f}" for value in view_box(bounds, (0, 0, 550, 340)))}
+
+
 def lineage_view(state):
     rarities = SETTINGS["rarities"]
     species = []
@@ -43,6 +50,8 @@ def lineage_view(state):
             "rarity": fish["rarity"], "rarity_color": rarities.get(fish["rarity"], {}).get("color", "#378976"),
             "generation": fish["generation"], "parent_id": fish.get("parent_id"),
             "colors": {key: fish["colors"][key] for key in ("body", "markings", "fins")},
+            "shape": {**normalize(fish.get("shape")), "mutations": list(fish.get("shape", {}).get("mutations", []))},
+            "drawing": _drawing(fish),
             "difficulty": fish.get("difficulty", 0), "reward": fish.get("reward", 0),
             "progress": fish.get("progress", 0) / 1000, "profiles": _profiles(fish),
         })
@@ -51,6 +60,6 @@ def lineage_view(state):
                 "names": list(job.get("names", []))}
                for job in state["jobs"].values() if job.get("status") != "done"]
     contributors = {profile["name"] for fish in species for profile in fish["profiles"]}
-    return {"species": species, "pending": pending,
+    return {"species": species, "pending": pending, "labels": LABELS,
             "stats": {"species": len(species), "generations": 1 + max(f["generation"] for f in species),
                       "contributors": len(contributors)}}

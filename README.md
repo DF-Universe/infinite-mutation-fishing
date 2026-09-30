@@ -109,15 +109,25 @@
 
 新变异完成当前使用文字通知，包括名称、稀有度、描述、难度及基础奖励；图片在该鱼实际刷新及捕获结算时展示。
 
-## 祖先鱼绘图预览
+## 鱼的外形与绘图
 
-`data/ancestor-fish.json` 保存祖先鱼暂定名称和三个色值。`scripts/render-fish.mjs` 用固定 SVG 轮廓绘制简笔鱼，身体／斑纹／鳍尾分别读取三个颜色，不使用 AI 图片生成。描边、眼睛是固定中性色，不参与遗传。
+所有鱼由 `shapes.py` 程序绘制，不使用 AI 图片。外形拆成五个基因位，三种颜色的含义不变：体型（6 种）与花纹（7 种）分别用鱼身、花纹色；尾型（5 种）、背鳍（4 种，腹鳍随背鳍）与附件（4 种）用鱼鳍色。描边、眼睛是固定中性色，不参与遗传。
+
+遗传规则（参数在 `data/capture-settings.json` 的 `shape`）：
+
+- 体型随第一位贡献者、花纹随第二位：`signature_chance`（60%）取该玩家按 QQ 号哈希出的招牌部件，否则随机。
+- 尾型、背鳍继承亲代，各自按子代稀有度独立判定突变 `fin_mutation`（R/SR/SSR=20%/35%/50%），突变必定换成别的部件；突变过的基因位记在 `shape.mutations`。
+- 附件按 `extra_chance`（R/SR/SSR=0/40%/100%）长出，亲代有附件时沿用同一种。
+
+外形在满刻度触发时随任务保存（`job.shape`），生成文案时以中文描述传给 DeepSeek，诞生卡片显示外形一行。没有 `shape` 的旧鱼和任务在 `upgrade_state` 中按代数顺序用同一规则补齐，以鱼 ID 为随机种子，结果固定；祖先鱼保持原外形。
+
+卡片用 `resvg-py` 把 SVG 栅格化，族谱页直接使用接口返回的 SVG，三处共用同一份画法。
 
 ```sh
-node scripts/render-fish.mjs
+venv/bin/python src/infinite-mutation-fishing/scripts/render-fish.py [config.json] [output-dir] [--gallery]
 ```
 
-输出透明背景的 `assets/ancestor/fish.svg` 和配色展示页 `assets/ancestor/preview.html`；`preview.png` 为展示页截图。也可传入配置路径和输出目录：`node scripts/render-fish.mjs <config.json> <output-dir>`。复用绘图函数时传入 `body`、`markings`、`fins` 三个 `#RRGGBB` 色值即可。
+默认读取 `data/ancestor-fish.json`，输出透明背景的 `assets/ancestor/fish.svg` 与配色展示页 `preview.html`；`--gallery` 另出全部部件一览 `gallery.png`。配置中可带 `shape` 字段指定外形。
 
 ## 群友变异配色预览
 
@@ -125,7 +135,7 @@ node scripts/render-fish.mjs
 
 ```sh
 venv/bin/python src/infinite-mutation-fishing/scripts/preview-mutation.py 112631066 --output src/infinite-mutation-fishing/previews/demo
-node src/infinite-mutation-fishing/scripts/render-fish.mjs src/infinite-mutation-fishing/previews/demo/fish.json src/infinite-mutation-fishing/previews/demo
+venv/bin/python src/infinite-mutation-fishing/scripts/render-fish.py src/infinite-mutation-fishing/previews/demo/fish.json src/infinite-mutation-fishing/previews/demo
 ```
 
 默认随机抽两位非当前机器人成员；`--users <QQ1> <QQ2>` 可复现选定贡献者的顺序，`--parent <fish.json>` 可改用其他亲代。群名片为空时回退昵称并标记来源。头像及身份快照只保存在已忽略的 `previews/`，不写游戏状态，不发消息。
@@ -137,7 +147,7 @@ node src/infinite-mutation-fishing/scripts/render-fish.mjs src/infinite-mutation
 - `qq/profiles.py`：`fetch_members`、`select_contributors`、`fetch_avatar`，只读读取与去重抽样。
 - `palette.py`：`extract_avatar_color`，先看原图最外圈，若 60% 以上是同一种颜色，视为纯色背景（如白底贴纸头像），去掉与它 OKLab 距离 0.08 以内的像素（剩余不足 15% 时不去除）；再裁掉边缘 8%、忽略透明像素、量化 12 色，选有足够面积的代表色；这是取色启发式，不是主体识别。
 - `palette.py`：`mix_colors`，三色等权 OKLab 平均；`mutation_palette`，按贡献者一／二／亲代混合色构造三色。
-- `scripts/render-fish.mjs`：`renderFish`，纯 SVG 三色简笔鱼模板。
+- `shapes.py`：`fish_svg`／`inherit_shape`，外形部件表、遗传规则与唯一的 SVG 画法。
 
 2026-09-28 在指定群实际验证了两位成员的读取、头像下载、提色、亲代混色与 SVG／PNG 预览。自动测试覆盖混色稳定性、贡献者色与亲代色的映射、透明／灰度头像、小色块过滤和成员选择。
 

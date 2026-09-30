@@ -48,7 +48,7 @@ def test_external_payload_contains_only_approved_fields(monkeypatch):
     Image.new("RGB", (16, 16), "#123456").save(data, "PNG")
     monkeypatch.setattr(generation, "fetch_avatar", lambda uid: data.getvalue())
     result = asyncio.run(generation.build_mutation(SimpleNamespace(), "987654321", state["jobs"][job_id], state["species"]["ancestor"]))
-    assert set(sent[0]) == {"contributors", "parent", "parent_description", "colors"}
+    assert set(sent[0]) == {"contributors", "parent", "parent_description", "colors", "shape"}
     assert sent[0]["contributors"] == ["星星", "月亮"]
     assert "987654321" not in json.dumps(sent)
     assert result["colors"] == ["#123456", "#123456"]

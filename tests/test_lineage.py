@@ -58,3 +58,12 @@ def test_token_is_stable_opaque_and_resolvable(repository):
     assert find_group(repository, token) == "456"
     assert find_group(repository, "0" * 16) is None
     assert find_group(repository, "../../etc") is None
+
+
+def test_lineage_view_carries_shape_genes_and_server_drawing():
+    view = lineage_view(family())
+    child = next(fish for fish in view["species"] if fish["id"] == "job")
+    assert set(child["shape"]) == {"body", "pattern", "tail", "dorsal", "extra", "mutations"}
+    assert "CLIP_ID" in child["drawing"]["markup"] and 'class="tail"' in child["drawing"]["markup"]
+    assert len(child["drawing"]["view_box"].split()) == 4
+    assert view["labels"]["body"][child["shape"]["body"]]

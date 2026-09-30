@@ -10,6 +10,7 @@ import math
 from PIL import Image, ImageDraw
 
 from .capture import SETTINGS, average_power, spawn_odds
+from .shapes import LABELS, normalize, shape_key
 from .economy import feed_status, ITEMS, expire_buffs, fishing_power, mutation_power
 from .visuals import BACKGROUND, INK, MUTED, TEAL, WIDTH, FishVisual, _card, _fish_icon, _fish_name, _fit, _font, _rarity, _text, _webp
 
@@ -253,7 +254,7 @@ def create_character_panel(view, avatar=None):
         x = 52 + index % columns * (cell_w + GAP)
         y = dex_y + 120 + index // columns * (cell_h + GAP)
         draw.rounded_rectangle((x, y, x + cell_w, y + cell_h), radius=14, fill=SOFT)
-        icon = _fish_icon(fish["colors"] if fish["caught"] else UNKNOWN_FISH, 64)
+        icon = _fish_icon(fish["colors"] if fish["caught"] else UNKNOWN_FISH, 64, fish["shape"])
         image.paste(icon, (x + 8, y + 10), icon)
         rarity_color = SETTINGS["rarities"].get(fish["rarity"], {}).get("color", TEAL)
         _text(draw, (x + 80, y + 18), fish["rarity"], 14, rarity_color if fish["caught"] else MUTED)
@@ -283,7 +284,8 @@ def character_view(player, state, user_id, now):
         "power": fishing_power(player, fever, now), "total_caught": sum(caught.values()),
         "equipment": [(label, ITEMS.get(str(player["equipment"].get(slot)))) for slot, label in (("rod", "渔具"), ("tool", "工具"))],
         "species": [{"name": fish["name"], "rarity": fish["rarity"], "caught": caught.get(fish["id"], 0) > 0,
-                     "colors": tuple(fish["colors"][key] for key in ("body", "markings", "fins"))}
+                     "colors": tuple(fish["colors"][key] for key in ("body", "markings", "fins")),
+                     "shape": shape_key(fish.get("shape"))}
                     for fish in state["species"].values()],
         "contributed": sum(str(user_id) in fish["contributors"] for fish in state["species"].values()),
     }
@@ -438,7 +440,7 @@ def create_status_panel(view):
                         _status_row(draw, row_y, "当前没有鱼", "等待下一次刷新")
                         continue
                     fish = current["fish"]
-                    image_icon = _fish_icon(tuple(fish["colors"][k] for k in ("body", "markings", "fins")), 60)
+                    image_icon = _fish_icon(fish_colors(fish), 60, shape_key(fish.get("shape")))
                     image.paste(image_icon, (48, row_y + 12), image_icon)
                     rarity_color = SETTINGS["rarities"].get(fish["rarity"], {}).get("color", TEAL)
                     detail = f"{fish['rarity']}  难度 {fish['difficulty']:g}  变异进度 {fish['progress'] / 1000:g}%"
@@ -470,7 +472,7 @@ def create_status_panel(view):
                 x = 52 + index % 2 * (col_w + GAP)
                 row_y = y + 90 + index // 2 * ODDS_ROW
                 draw.rounded_rectangle((x, row_y, x + col_w, row_y + ODDS_ROW - 8), radius=14, fill=SOFT)
-                icon = _fish_icon(tuple(fish["colors"][k] for k in ("body", "markings", "fins")), 56)
+                icon = _fish_icon(fish_colors(fish), 56, shape_key(fish.get("shape")))
                 image.paste(icon, (x + 8, row_y + 11), icon)
                 rarity_color = SETTINGS["rarities"].get(fish["rarity"], {}).get("color", TEAL)
                 probability_text = f"{probability * 100:.4f}%"
@@ -494,10 +496,21 @@ def fish_colors(fish):
     return tuple(fish["colors"][key] for key in ("body", "markings", "fins"))
 
 
+def shape_text(shape):
+    """体型 · 花纹 · 尾 · 背鳍 [· 附件], marking fins that mutated away from the parent."""
+    normal, mutated = normalize(shape), (shape or {}).get("mutations", [])
+    parts = [LABELS["body"][normal["body"]] + "体型", LABELS["pattern"][normal["pattern"]]]
+    for gene in ("tail", "dorsal"):
+        parts.append(LABELS[gene][normal[gene]] + ("（突变）" if gene in mutated else ""))
+    if normal["extra"]:
+        parts.append(LABELS["extra"][normal["extra"]])
+    return " · ".join(parts)
+
+
 def create_birth_card(child, parent):
     rarity_color = SETTINGS["rarities"].get(child["rarity"], {}).get("color", TEAL)
     description = wrap(child.get("description", ""), 17, INNER - 96, 4)
-    hero_h = 330 + len(description) * 27 + 24
+    hero_h = 362 + len(description) * 27 + 24
     chips_y = TOP + hero_h + GAP
     tiles_y = chips_y + 92 + GAP
     height = tiles_y + 100 + 88
@@ -505,12 +518,14 @@ def create_birth_card(child, parent):
 
     draw.rounded_rectangle((MARGIN, TOP, WIDTH - MARGIN, TOP + hero_h), radius=24, fill="white")
     _rarity(draw, FishVisual(child["name"], fish_colors(child), child["rarity"], rarity_color, child["generation"]), 52, TOP + 22)
-    icon = _fish_icon(fish_colors(child), 380)
+    icon = _fish_icon(fish_colors(child), 380, shape_key(child.get("shape")))
     image.paste(icon, ((WIDTH - 380) // 2, TOP + 58), icon)
     name = _fit(child["name"], 30, INNER - 80)
     _fish_name(draw, ((WIDTH - _font(30).getlength(name)) / 2, TOP + 290), name, 30)
+    draw.text((WIDTH / 2, TOP + 338), _fit(shape_text(child.get("shape")), 16, INNER - 80), font=_font(16),
+              fill=TEAL, anchor="mt")
     for index, line in enumerate(description):
-        draw.text((WIDTH / 2, TOP + 340 + index * 27), line, font=_font(17), fill=MUTED, anchor="mt")
+        draw.text((WIDTH / 2, TOP + 372 + index * 27), line, font=_font(17), fill=MUTED, anchor="mt")
 
     chip_w = (INNER - GAP * 2) // 3
     profiles = child.get("profiles") or []
