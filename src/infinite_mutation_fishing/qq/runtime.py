@@ -8,7 +8,7 @@ from nonebot.log import logger
 from nonebot_plugin_alconna import UniMessage, Target, Other
 
 from .. import GAME_NAME
-from ..capture import SETTINGS, GameError, get_player, refresh, tick, start_fever, spawn_fish
+from ..capture import SETTINGS, GameError, get_player, refresh, request_spawn, tick, start_fever, spawn_fish
 from ..repository import get_repository
 from ..shapes import shape_key
 from ..visuals import FishVisual, render_catch_card, render_spawn_card
@@ -216,6 +216,22 @@ async def force_refresh(bot, event, group_id, fever=False):
     data = await asyncio.to_thread(render_spawn_card, appearance(result["fish"]), fever=result["fever"])
     await spawn_message(bot, data, result["fish"]).send()
     await asyncio.to_thread(get_repository().transact, group_id, lambda state: mark_announced(state, result["spawn_id"]))
+
+
+async def requested_spawn(group_id):
+    """Spawn on behalf of the AstrBot persona; the card still comes from this bot like any refresh."""
+    from src.data_access.open_helper import get_private_bot
+    from src.data_access.plugin_manager import plugin_manager
+    if not plugin_manager.get_enable(group_id, GAME_NAME):
+        raise GameError("这个群没有开启变异捕鱼")
+    repository = get_repository()
+    result = await asyncio.to_thread(repository.transact, group_id,
+                                     lambda state: request_spawn(state, time.time(), random.SystemRandom()))
+    bot = get_private_bot()
+    data = await asyncio.to_thread(render_spawn_card, appearance(result["fish"]), fever=result["fever"])
+    await spawn_message(bot, data, result["fish"]).send(target=Target(str(group_id)), bot=bot)
+    await asyncio.to_thread(repository.transact, group_id, lambda state: mark_announced(state, result["spawn_id"]))
+    return result["fish"]
 
 
 async def scheduled_tick():

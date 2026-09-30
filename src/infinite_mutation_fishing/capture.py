@@ -230,6 +230,16 @@ def spawn_fish(state, now, rng, *, force=False, fish_id=None):
     return {"fish": deepcopy(fish), "fever": fever, "spawn_id": state["spawn"]["id"]}
 
 
+def request_spawn(state, now, rng):
+    """A spawn the chat persona granted on a player's request: never at night or over a fish already present."""
+    refresh(state, now)
+    if 1 <= datetime.fromtimestamp(now, ZoneInfo("Asia/Shanghai")).hour < 8:
+        raise GameError("夜里鱼群都睡了")
+    if state["spawn"]:
+        raise GameError("水里已经有鱼了")
+    return spawn_fish(state, now, rng, force=True)
+
+
 def catch_rate(power, difficulty):
     diff = power - difficulty
     return (100 - 40 * .9 ** (diff/5)) if diff > 0 else (60 * .9 ** (-diff/5))
