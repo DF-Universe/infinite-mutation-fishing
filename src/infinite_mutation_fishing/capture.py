@@ -12,7 +12,7 @@ from zoneinfo import ZoneInfo
 from .palette import mutation_palette
 from .shapes import ANCESTOR_SHAPE, inherit_shape
 from .balance import birth_stats
-from .errors import GameError
+from .errors import GameError, SilentError
 from .economy import (
     ITEMS, ensure_inventory, fishing_power, mutation_power, reward_percent,
     spend_attempt_buff, buy_item, draw_items, use_item,
@@ -252,7 +252,7 @@ def catch_fish(state, user_id, name, now, rng):
     if not spawn:
         raise GameError("当前没有鱼，请等待刷新")
     if user_id in spawn["attempted"]:
-        raise GameError("你已经尝试过这轮的鱼了，请等待下一次刷新")
+        raise SilentError("你已经尝试过这轮的鱼了，请等待下一次刷新")
     player = get_player(state, user_id, name, now)
     fish = state["species"][spawn["fish_id"]]
     success_rate = catch_rate(fishing_power(player, spawn["fever"], now), fish["difficulty"])

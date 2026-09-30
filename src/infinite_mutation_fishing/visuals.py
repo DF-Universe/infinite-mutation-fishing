@@ -123,6 +123,11 @@ def render_spawn_card(fish: FishVisual, *, fever: bool = False) -> bytes:
     return _webp(image)
 
 
+def failure_text(result) -> str:
+    """A failed catch is a plain one-line reply instead of a card."""
+    return f"捕获失败（成功率 {result['success_rate']:.2f}%），经验+{result['experience']}"
+
+
 def render_catch_card(
     fish: FishVisual, *, player_name: str, coins: int, experience: int,
     mutation_contribution: Decimal | float | int, contribution_note: str = "", success: bool = True,
@@ -153,43 +158,53 @@ def render_catch_card(
     progress = None if mutation_progress is None else Decimal(str(mutation_progress))
     if progress is not None and (not progress.is_finite() or not 0 <= progress <= 100):
         raise ValueError("Mutation progress must be between 0 and 100 percent")
-    image, draw = _card(648 if progress is not None else 568, title or ("捕鱼成功" if success else "鱼儿没上钩"), eyebrow)
-    draw.rounded_rectangle((28, 114, 772, 313), radius=24, fill="white")
-    icon = _fish_icon(tuple(fish.colors), 255, fish.shape)
-    image.paste(icon, (42, 131), icon)
-    _text(draw, (329, 137), _fit(player_name, 17, 391), 17, MUTED)
-    _fish_name(draw, (329, 170), _fit(fish.name, 29, 391, True), 29)
-    _rarity(draw, fish, 329, 219)
+    height = 526 if progress is not None else 464
+    image = Image.new("RGB", (WIDTH, height), BACKGROUND)
+    draw = ImageDraw.Draw(image)
+    _text(draw, (30, 22), title or ("捕鱼成功" if success else "鱼儿没上钩"), 32, bold=True)
+    draw.text((WIDTH - 30, 20), "无限融合变异捕鱼", font=_font(15), fill=MUTED, anchor="rt")
+    draw.text((WIDTH - 30, 42), eyebrow, font=_font(17), fill=TEAL, anchor="rt")
+
+    draw.rounded_rectangle((24, 74, 776, 264), radius=24, fill="white")
+    icon = _fish_icon(tuple(fish.colors), 290, fish.shape)
+    image.paste(icon, (34, 82), icon)
+    _text(draw, (338, 98), _fit(player_name, 20, 420), 20, MUTED)
+    _fish_name(draw, (338, 128), _fit(fish.name, 34, 420, True), 34)
+    _rarity(draw, fish, 338, 190)
     if success_rate is not None:
-        _text(draw, (538, 229), f"成功率 {rate:.2f}%", 17, TEAL)
-    _text(draw, (329, 271), "成功捕获 1 条" if success else "捕获失败 · 获得参与经验", 16, MUTED)
+        pill = round(_font(17, True).getlength(_fit(fish.rarity, 17, 135, True))) + 48
+        _text(draw, (338 + pill + 18, 197), f"成功率 {rate:.2f}%", 21, TEAL)
+
     values = [
         ("金币", f"+{coins:,}", "#A87921", "#FBF4E4"),
         ("经验", f"+{experience:,}", "#427AB0", "#EAF2FB"),
         ("变异贡献", f"+{contribution_text}%", TEAL, "#E3F2EB"),
     ]
+    tile_w = (752 - 2 * 12) // 3
     for index, (label, value, color, fill) in enumerate(values):
-        x = 28 + index*252
-        draw.rounded_rectangle((x, 331, x+240, 455), radius=19, fill=fill)
-        _text(draw, (x+20, 353), label, 18, color)
-        size = 33
-        while size > 14 and _font(size, True).getlength(value) > 201:
+        x = 24 + index * (tile_w + 12)
+        draw.rounded_rectangle((x, 280, x + tile_w, 380), radius=19, fill=fill)
+        _text(draw, (x + 20, 294), label, 19, color)
+        size = 38
+        while size > 14 and _font(size, True).getlength(value) > tile_w - 40:
             size -= 1
-        _text(draw, (x+20, 393), value, size, color, True)
+        _text(draw, (x + 20, 326), value, size, color, True)
+
     note = contribution_note or ("本次未增加变异刻度" if contribution == 0 else "已计入本轮变异贡献")
-    offset = 80 if progress is not None else 0
+    box_bottom = height - 20
+    draw.rounded_rectangle((24, 396, 776, box_bottom), radius=19, fill="white")
+    note_y = 410
     if progress is not None:
         progress_text = format(progress.quantize(Decimal("0.001")), "f").rstrip("0").rstrip(".")
-        _text(draw, (38, 477), "变异进度", 18, TEAL)
-        label = f"{progress_text}% / 100%"
-        draw.text((762, 477), label, font=_font(18), fill=TEAL, anchor="rt")
-        draw.rounded_rectangle((38, 512, 762, 532), radius=10, fill="#DCE8E2")
+        _text(draw, (44, 412), "变异进度", 20, TEAL)
+        draw.text((756, 412), f"{progress_text}% / 100%", font=_font(20), fill=TEAL, anchor="rt")
+        draw.rounded_rectangle((44, 446, 756, 462), radius=8, fill="#DCE8E2")
         if progress > 0:
-            length = max(1, round(724 * float(progress) / 100))
-            draw.rounded_rectangle((38, 512, 38+length, 532), radius=min(10, length/2), fill=TEAL)
-    draw.ellipse((38, 487+offset, 46, 495+offset), fill=TEAL if contribution else MUTED)
-    _text(draw, (57, 479+offset), _fit(note, 18, 687), 18, TEAL if contribution else MUTED)
-    _text(draw, (38, 530+offset), "每一次收获，都留下成长的印记。", 13, MUTED)
+            length = max(1, round(712 * float(progress) / 100))
+            draw.rounded_rectangle((44, 446, 44 + length, 462), radius=min(8, length / 2), fill=TEAL)
+        note_y = 474
+    draw.ellipse((44, note_y + 7, 52, note_y + 15), fill=TEAL if contribution else MUTED)
+    _text(draw, (62, note_y), _fit(note, 20, 690), 20, TEAL if contribution else MUTED)
     return _webp(image)
 
 

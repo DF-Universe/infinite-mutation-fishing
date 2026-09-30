@@ -56,7 +56,8 @@ event = SimpleNamespace(message_id=1, get_user_id=lambda: "7",
                         data=SimpleNamespace(sender=SimpleNamespace(card="名片", nickname="昵称")))
 asyncio.run(runtime.handle_catch(SimpleNamespace(), event, "123"))
 assert len(sent) == 1
-segment = sent[0][0]
+assert sent[0][0].id == "1"
+segment = sent[0][1]
 assert segment.mimetype == "image/webp" and segment.name.endswith(".webp")
 assert segment.raw[:4] == b"RIFF" and segment.raw[8:12] == b"WEBP"
 
@@ -78,8 +79,8 @@ assert state["players"]["7"]["coins"] == 50
 assert state["players"]["7"]["equipment"]["rod"] == "201"
 assert sum(state["players"]["7"]["bag"].values()) == 12
 for index in [0,1,4,5]:
-    assert sent[index][0].mimetype == "image/webp"
-    assert sent[index][0].raw[:4] == b"RIFF"
+    assert sent[index][-1].mimetype == "image/webp"
+    assert sent[index][-1].raw[:4] == b"RIFF"
 assert str(sent[2]) == "购买 青铜渔具 成功"
 assert str(sent[3]) == "装备 青铜渔具 成功"
 asyncio.run(runtime.show_inventory(SimpleNamespace(), event, "123", page_text="999"))

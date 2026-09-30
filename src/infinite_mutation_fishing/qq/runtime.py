@@ -11,7 +11,7 @@ from .. import GAME_NAME
 from ..capture import SETTINGS, GameError, get_player, refresh, request_spawn, tick, start_fever, spawn_fish
 from ..repository import get_repository
 from ..shapes import shape_key
-from ..visuals import FishVisual, render_catch_card, render_spawn_card
+from ..visuals import FishVisual, failure_text, render_catch_card, render_spawn_card
 from ..economy import feed_status, ITEMS, fishing_power, mutation_power
 from ..panels import render_shop_panel, render_inventory_panel, render_character_panel, render_gacha_panel, render_status_panel, render_birth_card
 from io import BytesIO
@@ -72,13 +72,17 @@ async def handle_catch(bot, event, group_id):
     result = await asyncio.to_thread(get_repository().command, group_id, str(message_id), "catch", user_id, name)
     if result.get("duplicate"):
         return
+    reply = UniMessage.reply(str(message_id))  # Milky message ids are ints; a non-str reply drops the whole message
+    if not result["success"]:
+        await (reply + UniMessage.text(failure_text(result))).send()
+        return
     data = await asyncio.to_thread(render_catch_card, appearance(result["fish"]),
                                   player_name=result["player_name"], coins=result["coins"],
                                   experience=result["experience"], mutation_contribution=Decimal(result["contribution"])/1000,
                                   contribution_note=result["note"], success=result["success"],
                                   success_rate=result["success_rate"],
                                   mutation_progress=Decimal(result["mutation_progress"])/1000)
-    await image_message(data, "mutation-catch.webp").send()
+    await (reply + image_message(data, "mutation-catch.webp")).send()
 
 
 async def show_pond(bot, event, group_id):

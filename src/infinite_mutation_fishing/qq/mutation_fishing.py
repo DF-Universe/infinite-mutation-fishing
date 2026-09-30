@@ -35,9 +35,11 @@ async def catch_command(bot: Bot, event: Event):
 
 
 async def run_action(action, bot, event):
-    from ..capture import GameError
+    from ..errors import GameError, SilentError
     try:
         await action(bot, event, resolve_group_id(event))
+    except SilentError:
+        return
     except GameError as exc:
         from nonebot_plugin_alconna import UniMessage
         await UniMessage.text(str(exc)).send()

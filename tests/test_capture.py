@@ -5,6 +5,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
+from infinite_mutation_fishing.errors import SilentError
 from infinite_mutation_fishing.capture import (
     SETTINGS, GameError, add_contribution, catch_fish, contribution_base, apply_command,
     finish_mutation, get_player, initial_state, refresh, sign_in, spawn_fish, start_fever, tick,
@@ -37,7 +38,7 @@ def test_normal_fish_allows_everyone_once_but_one_contribution():
     assert state["spawn"] is not None
     second = catch_fish(state, "b", "B", NOW, Lucky())
     assert second["success"] and second["contribution"] == 0
-    with pytest.raises(GameError, match="尝试过"):
+    with pytest.raises(SilentError, match="尝试过"):
         catch_fish(state, "a", "A", NOW, Lucky())
 
 
@@ -48,7 +49,7 @@ def test_fever_multiple_players_but_one_attempt_per_player_and_one_contribution(
     assert first["contribution"] == 5000 and second["contribution"] == 0
     assert first["coins"] == second["coins"] == 10
     assert state["spawn"] is not None
-    with pytest.raises(GameError, match="尝试过"):
+    with pytest.raises(SilentError, match="尝试过"):
         catch_fish(state, "a", "A", NOW, Lucky())
 
 

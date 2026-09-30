@@ -14,14 +14,14 @@ def fish():
 
 
 def test_cards_are_decodable_webp_with_bounded_size(fish):
-    for data in [render_spawn_card(fish), render_catch_card(
+    for data, height in [(render_spawn_card(fish), 568), (render_catch_card(
         fish, player_name="渔友", coins=128, experience=24, mutation_contribution=5
-    )]:
+    ), 464)]:
         assert data[:4] == b"RIFF" and data[8:12] == b"WEBP"
         image = Image.open(BytesIO(data))
         image.load()
         assert image.format == "WEBP"
-        assert image.size == (800, 568)
+        assert image.size == (800, height)
         assert len(data) < 100_000
 
 
@@ -119,9 +119,9 @@ def test_catch_progress_bar_fill_tracks_total(progress):
     data = render_catch_card(fish,player_name='渔友',coins=10,experience=10,
                             mutation_contribution=0,mutation_progress=progress)
     with Image.open(BytesIO(data)) as image:
-        assert image.size == (800,648)
-        for x, threshold in [(100,9),(410,50),(760,99)]:
-            r,g,b = image.convert('RGB').getpixel((x,522))
+        assert image.size == (800,526)
+        for x, threshold in [(100,7),(410,51),(750,99)]:
+            r,g,b = image.convert('RGB').getpixel((x,454))
             if progress > threshold:
                 assert r < 90 and g > r+40
             else:
@@ -134,3 +134,8 @@ def test_catch_progress_rejects_invalid_total(progress):
     with pytest.raises(ValueError,match='Mutation progress'):
         render_catch_card(fish,player_name='渔友',coins=0,experience=0,
                           mutation_contribution=0,mutation_progress=progress)
+
+
+def test_failed_catch_is_one_plain_line():
+    from infinite_mutation_fishing.visuals import failure_text
+    assert failure_text({"success_rate": 60.834, "experience": 1}) == "捕获失败（成功率 60.83%），经验+1"
