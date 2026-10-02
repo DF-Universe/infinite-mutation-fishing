@@ -26,6 +26,8 @@ assert nonebot.load_plugin("plugin") is not None
 loaded = nonebot.load_plugin("infinite_mutation_fishing.qq.mutation_fishing")
 assert loaded is not None
 assert registered[0]["enable"] is False
+with open(registered[0]["help_image"], "rb") as help_file:
+    assert help_file.read(12)[8:12] == b"WEBP"
 module = loaded.module
 events = [
     (SimpleNamespace(group_id=123), True),
@@ -94,6 +96,28 @@ from infinite_mutation_fishing.qq import profiles
 profiles.fetch_avatar = lambda *args, **kwargs: (_ for _ in ()).throw(ValueError("unavailable"))
 asyncio.run(runtime.show_panel(SimpleNamespace(), event, "123"))
 assert sent[-1][0].name == "mutation-panel.webp"
+
+import time as clock
+from infinite_mutation_fishing.capture import spawn_fish
+leave_state = initial_state()
+spawn = spawn_fish(leave_state, clock.time(), __import__("random").Random(1), force=True)
+expires_at = runtime.mark_announced(leave_state, spawn["spawn_id"])
+assert expires_at == leave_state["spawn"]["expires_at"]
+assert runtime.mark_announced(leave_state, "other-spawn") is None
+leave_state["spawn"]["expires_at"] = clock.time()
+class LeaveRepository:
+    def transact(self, group, transition):
+        return transition(leave_state)
+runtime.get_repository = lambda: LeaveRepository()
+before = len(sent)
+async def wait_for_leave():
+    runtime.schedule_leave(SimpleNamespace(), "123", clock.time())
+    runtime.schedule_leave(SimpleNamespace(), "123", clock.time())
+    await asyncio.sleep(1.2)
+asyncio.run(wait_for_leave())
+assert [str(message) for message in sent[before:]] == ["鱼离开了..."]
+assert leave_state["spawn"] is None and "fish_left" not in leave_state
+runtime.schedule_leave(SimpleNamespace(), "123", None)
 
 '''
     env = {**os.environ, "PYTHONPATH": os.pathsep.join([str(package_src), str(tmp_path)])}

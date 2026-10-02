@@ -6,7 +6,22 @@ from infinite_mutation_fishing import GAME_NAME, HELP_TEXT
 from src.data_access.plugin_manager import plugin_manager
 
 
+def help_image_path() -> str | None:
+    """宿主的「help 插件名」只认文件路径，启动时把帮助图落到临时目录；失败则退回文字帮助。"""
+    import tempfile
+    from pathlib import Path
+    try:
+        from ..help_card import render_help_card
+        path = Path(tempfile.gettempdir()) / "mutation-fishing-help.webp"
+        path.write_bytes(render_help_card())
+        return str(path)
+    except Exception:
+        return None
+
+
 PLUGIN_META = {"name": GAME_NAME, "enable": False, "help_text": HELP_TEXT}
+if (_help_image := help_image_path()) is not None:
+    PLUGIN_META["help_image"] = _help_image
 plugin_manager.register_plugin(PLUGIN_META)
 
 
@@ -43,6 +58,15 @@ async def run_action(action, bot, event):
     except GameError as exc:
         from nonebot_plugin_alconna import UniMessage
         await UniMessage.text(str(exc)).send()
+
+
+help_card = on_command("捕鱼帮助", rule=enabled_in_group, force_whitespace=True)
+
+
+@help_card.handle()
+async def help_command(bot: Bot, event: Event):
+    from .runtime import show_help
+    await run_action(show_help, bot, event)
 
 
 pond = on_command("鱼塘", rule=enabled_in_group, force_whitespace=True)

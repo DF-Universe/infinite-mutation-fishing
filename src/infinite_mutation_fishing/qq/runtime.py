@@ -8,7 +8,7 @@ from nonebot.log import logger
 from nonebot_plugin_alconna import UniMessage, Target, Other
 
 from .. import GAME_NAME
-from ..capture import SETTINGS, GameError, get_player, refresh, request_spawn, tick, start_fever, spawn_fish
+from ..capture import SETTINGS, GameError, get_player, refresh, request_spawn, tick, start_fever, spawn_fish, take_fish_left
 from ..repository import get_repository
 from ..shapes import shape_key
 from ..visuals import FishVisual, failure_text, render_catch_card, render_spawn_card
@@ -42,8 +42,34 @@ def fever_start_text(minutes):
 
 
 def mark_announced(state, spawn_id):
-    if state["spawn"] and state["spawn"]["id"] == spawn_id:
-        state["spawn"]["announced"] = True
+    """返回需要准点播报离开的时间（仅普通鱼）。"""
+    spawn = state["spawn"]
+    if spawn and spawn["id"] == spawn_id:
+        spawn["announced"] = True
+        return None if spawn["fever"] else spawn["expires_at"]
+    return None
+
+
+_leave_tasks = set()
+
+
+def schedule_leave(bot, group_id, expires_at):
+    """鱼到点就发「鱼离开了」，不等每分钟的定时任务；重启丢失计时器时由 tick 兜底。"""
+    if expires_at is None:
+        return
+    async def announce():
+        try:
+            left = await asyncio.to_thread(get_repository().transact, group_id,
+                                           lambda state: take_fish_left(state, time.time()))
+            if left:
+                await UniMessage.text("鱼离开了...").send(target=Target(str(group_id)), bot=bot)
+        except Exception as exc:
+            logger.exception(f"变异捕鱼离开播报失败：{group_id} ({type(exc).__name__})")
+    def fire():
+        task = asyncio.ensure_future(announce())
+        _leave_tasks.add(task)
+        task.add_done_callback(_leave_tasks.discard)
+    asyncio.get_running_loop().call_later(max(0.0, expires_at - time.time()) + 0.5, fire)
 
 
 async def member_name(bot, event, group_id, user_id):
@@ -83,6 +109,12 @@ async def handle_catch(bot, event, group_id):
                                   success_rate=result["success_rate"],
                                   mutation_progress=Decimal(result["mutation_progress"])/1000)
     await (reply + image_message(data, "mutation-catch.webp")).send()
+
+
+async def show_help(bot, event, group_id):
+    from ..help_card import render_help_card
+    data = await asyncio.to_thread(render_help_card)
+    await image_message(data, "mutation-help.webp").send()
 
 
 async def show_pond(bot, event, group_id):
@@ -219,7 +251,8 @@ async def force_refresh(bot, event, group_id, fever=False):
         await UniMessage.text(fever_start_text(minutes)).send()
     data = await asyncio.to_thread(render_spawn_card, appearance(result["fish"]), fever=result["fever"])
     await spawn_message(bot, data, result["fish"]).send()
-    await asyncio.to_thread(get_repository().transact, group_id, lambda state: mark_announced(state, result["spawn_id"]))
+    expires_at = await asyncio.to_thread(get_repository().transact, group_id, lambda state: mark_announced(state, result["spawn_id"]))
+    schedule_leave(bot, group_id, expires_at)
 
 
 async def requested_spawn(group_id):
@@ -234,7 +267,8 @@ async def requested_spawn(group_id):
     bot = get_private_bot()
     data = await asyncio.to_thread(render_spawn_card, appearance(result["fish"]), fever=result["fever"])
     await spawn_message(bot, data, result["fish"]).send(target=Target(str(group_id)), bot=bot)
-    await asyncio.to_thread(repository.transact, group_id, lambda state: mark_announced(state, result["spawn_id"]))
+    expires_at = await asyncio.to_thread(repository.transact, group_id, lambda state: mark_announced(state, result["spawn_id"]))
+    schedule_leave(bot, group_id, expires_at)
     return result["fish"]
 
 
@@ -266,7 +300,8 @@ async def scheduled_tick():
                     spawn = result["spawn"]
                     data = await asyncio.to_thread(render_spawn_card, appearance(spawn["fish"]), fever=spawn["fever"])
                     await spawn_message(bot, data, spawn["fish"]).send(target=Target(str(group_id)), bot=bot)
-                    await asyncio.to_thread(repository.transact, group_id, lambda state: mark_announced(state, spawn["spawn_id"]))
+                    expires_at = await asyncio.to_thread(repository.transact, group_id, lambda state: mark_announced(state, spawn["spawn_id"]))
+                    schedule_leave(bot, group_id, expires_at)
         except Exception as exc:
             logger.exception(f"变异捕鱼刷新失败：{group_id} ({type(exc).__name__})")
 

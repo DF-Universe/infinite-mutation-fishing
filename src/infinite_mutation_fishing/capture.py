@@ -250,7 +250,8 @@ def catch_fish(state, user_id, name, now, rng):
     refresh(state, now)
     spawn = state["spawn"]
     if not spawn:
-        raise GameError("当前没有鱼，请等待刷新")
+        # 鱼已到时但「鱼离开了」还没发出去时，别让回复显得鱼是凭空消失的
+        raise GameError("鱼刚刚游走了，请等待下一次刷新" if state.get("fish_left") else "当前没有鱼，请等待刷新")
     if user_id in spawn["attempted"]:
         raise SilentError("你已经尝试过这轮的鱼了，请等待下一次刷新")
     player = get_player(state, user_id, name, now)
@@ -331,6 +332,12 @@ def tick(state, now, rng):
                   "fever": current["fever"], "spawn_id": current["id"]}
     return {"spawn": result, "fever_started": fever_started, "fever_ended": fever_ended,
             "fish_left": fish_left}
+
+
+def take_fish_left(state, now):
+    """到点后立即结算离开；与 tick 共用同一个标记，谁先取走谁发消息，不会重复。"""
+    refresh(state, now)
+    return state.pop("fish_left", False)
 
 
 def finish_mutation(state, job_id, generated):

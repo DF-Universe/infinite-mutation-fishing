@@ -8,7 +8,7 @@ import pytest
 from infinite_mutation_fishing.errors import SilentError
 from infinite_mutation_fishing.capture import (
     SETTINGS, GameError, add_contribution, catch_fish, contribution_base, apply_command,
-    finish_mutation, get_player, initial_state, refresh, sign_in, spawn_fish, start_fever, tick,
+    finish_mutation, get_player, initial_state, refresh, sign_in, spawn_fish, start_fever, take_fish_left, tick,
 )
 
 NOW = datetime(2026, 9, 28, 12, tzinfo=ZoneInfo("Asia/Shanghai")).timestamp()
@@ -344,3 +344,16 @@ def test_normal_fish_leave_is_reported_once():
     assert tick(fever, fever["spawn"]["expires_at"], Lucky())["fish_left"] is False
     silent = ready()
     assert tick(silent, silent["spawn"]["expires_at"], Lucky())["fish_left"] is False
+
+
+def test_leave_is_taken_once_and_explains_the_gap():
+    state = ready()
+    state["spawn"]["announced"] = True
+    expiry = state["spawn"]["expires_at"]
+    assert take_fish_left(state, expiry - 1) is False
+    with pytest.raises(GameError, match="刚刚游走"):
+        catch_fish(state, "a", "A", expiry + 1, Lucky())
+    assert take_fish_left(state, expiry + 1) is True
+    assert take_fish_left(state, expiry + 2) is False
+    with pytest.raises(GameError, match="当前没有鱼"):
+        catch_fish(state, "a", "A", expiry + 2, Lucky())
