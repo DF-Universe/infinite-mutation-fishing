@@ -133,3 +133,17 @@ def test_concurrent_feed_cooldown_persists_for_whole_group(repository):
         reloaded.command('g', 'early', 'use', '0', 'A', NOW + 17999, payload={'item': '1'})
     reloaded.command('g', 'ready', 'use', '0', 'A', NOW + 18000, payload={'item': '1'})
     assert reloaded.read('g')['last_feed_at'] == NOW + 18000
+
+
+def test_empty_pond_catch_replies_once_then_stays_silent(repository):
+    from infinite_mutation_fishing.errors import NoFishError, SilentError
+    with pytest.raises(NoFishError):
+        repository.command("g", "m1", "catch", "a", "A", NOW)
+    with pytest.raises(SilentError):
+        repository.command("g", "m2", "catch", "a", "A", NOW)
+    with pytest.raises(NoFishError):
+        repository.command("g", "m3", "catch", "b", "B", NOW)
+    ttl = repository.redis.ttl(repository.empty_catch_key("g", "a"))
+    assert 0 < ttl <= 30 * 60
+    repository.transact("g", lambda state: spawn_fish(state, NOW, Lucky(), force=True))
+    assert "success" in repository.command("g", "m4", "catch", "a", "A", NOW)

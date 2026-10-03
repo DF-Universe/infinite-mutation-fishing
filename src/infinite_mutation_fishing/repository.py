@@ -5,6 +5,9 @@ import time
 from redis.exceptions import WatchError
 
 from .capture import GameError, apply_command, initial_state, upgrade_state
+from .errors import NoFishError, SilentError
+
+EMPTY_CATCH_SILENCE = 30 * 60
 
 
 class Repository:
@@ -51,7 +54,16 @@ class Repository:
             state["processed"] = {k: v for k, v in state["processed"].items() if now-v < 86400}
             return result
 
-        return self.transact(group_id, transition)
+        try:
+            return self.transact(group_id, transition)
+        except NoFishError as exc:
+            # 空塘捕鱼只提示一次，30 分钟内同一玩家再刷「捕鱼」直接静默
+            if self.redis.set(self.empty_catch_key(group_id, user_id), 1, nx=True, ex=EMPTY_CATCH_SILENCE):
+                raise
+            raise SilentError(str(exc)) from exc
+
+    def empty_catch_key(self, group_id, user_id):
+        return self.prefix + f"empty_catch:{group_id}:{user_id}"
 
 
 def get_repository():

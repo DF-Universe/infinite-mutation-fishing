@@ -12,7 +12,7 @@ from zoneinfo import ZoneInfo
 from .palette import mutation_palette
 from .shapes import ANCESTOR_SHAPE, inherit_shape
 from .balance import birth_stats
-from .errors import GameError, SilentError
+from .errors import GameError, NoFishError, SilentError
 from .economy import (
     ITEMS, ensure_inventory, fishing_power, mutation_power, reward_percent,
     spend_attempt_buff, buy_item, draw_items, use_item,
@@ -251,7 +251,7 @@ def catch_fish(state, user_id, name, now, rng):
     spawn = state["spawn"]
     if not spawn:
         # 鱼已到时但「鱼离开了」还没发出去时，别让回复显得鱼是凭空消失的
-        raise GameError("鱼刚刚游走了，请等待下一次刷新" if state.get("fish_left") else "当前没有鱼，请等待刷新")
+        raise NoFishError("鱼刚刚游走了，请等待下一次刷新" if state.get("fish_left") else "当前没有鱼，请等待刷新")
     if user_id in spawn["attempted"]:
         raise SilentError("你已经尝试过这轮的鱼了，请等待下一次刷新")
     player = get_player(state, user_id, name, now)
