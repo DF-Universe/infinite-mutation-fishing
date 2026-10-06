@@ -29,16 +29,48 @@ assert registered[0]["enable"] is False
 with open(registered[0]["help_image"], "rb") as help_file:
     assert help_file.read(12)[8:12] == b"WEBP"
 module = loaded.module
+nonebot.require("nonebot_plugin_alconna")
+from infinite_mutation_fishing.qq import chat
+helper = ModuleType("src.data_access.open_helper")
+helper.db_get_real_group = {"OPEN123": 123, "OPEN999": 999}.get
+helper.db_get_real_user = {"MEMBER7": 7}.get
+helper.get_private_bot = lambda: SimpleNamespace()
+sys.modules["src.data_access.open_helper"] = helper
+bound = {"OPEN123": 123}
+chat._group_map = lambda: bound
+chat._is_official = lambda event: hasattr(event, "group_openid")
+chat.chiyuki_bot = lambda: object()
+official = lambda group, user="MEMBER7": SimpleNamespace(group_openid=group, get_user_id=lambda: user)
 events = [
-    (SimpleNamespace(group_id=123), True),
-    (SimpleNamespace(group_openid="123"), True),
-    (SimpleNamespace(data=SimpleNamespace(message_scene="group", peer_id=123)), True),
-    (SimpleNamespace(group_id=456), False),
+    (SimpleNamespace(group_id=456, get_user_id=lambda: "7"), False),
+    (SimpleNamespace(group_id=123, get_user_id=lambda: "7"), False),
+    (SimpleNamespace(data=SimpleNamespace(message_scene="group", peer_id=123), get_user_id=lambda: "7"), False),
+    (official("OPEN123"), True),
+    (official("OPEN123", "STRANGER"), True),
+    (official("UNBOUND"), False),
     (SimpleNamespace(data=SimpleNamespace(message_scene="friend", peer_id=123)), False),
     (SimpleNamespace(), False),
 ]
 for event, expected in events:
-    assert asyncio.run(module.enabled_in_group(event)) is expected
+    assert asyncio.run(module.enabled_in_group(event)) is expected, event
+assert chat.speaker(official("OPEN123")) == chat.Speaker("123", "7", True)
+bound.clear()
+assert asyncio.run(module.enabled_in_group(SimpleNamespace(group_id=123, get_user_id=lambda: "7"))) is True
+assert chat.speaker(SimpleNamespace(group_id=123, get_user_id=lambda: "7")) == chat.Speaker("123", "7", False)
+bound["OPEN123"] = 123
+from infinite_mutation_fishing.errors import GameError
+try:
+    chat.speaker(official("OPEN123", "STRANGER"), strict=True)
+except GameError as exc:
+    assert "绑定用户" in str(exc)
+else:
+    raise AssertionError("unbound 千雪 user was let through")
+bound.clear()
+from nonebot_plugin_alconna import UniMessage as Uni
+from infinite_mutation_fishing.help_card import render_help_card
+copied = chat._official_copy(Uni.image(raw=render_help_card(), mimetype="image/webp", name="x.webp") + Uni.text("t"))
+assert copied[0].mimetype == "image/png" and copied[0].raw[1:4] == b"PNG" and copied[0].name == "x.png"
+assert str(copied[1]) == "t"
 
 nonebot.require("nonebot_plugin_alconna")
 from infinite_mutation_fishing.qq import runtime
@@ -56,6 +88,7 @@ class FakeRepository:
 runtime.get_repository = lambda: FakeRepository()
 event = SimpleNamespace(message_id=1, get_user_id=lambda: "7",
                         data=SimpleNamespace(sender=SimpleNamespace(card="名片", nickname="昵称")))
+chat.CURRENT_MESSAGE.set("1")
 asyncio.run(runtime.handle_catch(SimpleNamespace(), event, "123"))
 assert len(sent) == 1
 assert sent[0][0].id == "1"
@@ -83,8 +116,8 @@ assert sum(state["players"]["7"]["bag"].values()) == 12
 for index in [0,1,4,5]:
     assert sent[index][-1].mimetype == "image/webp"
     assert sent[index][-1].raw[:4] == b"RIFF"
-assert str(sent[2]) == "购买 青铜渔具 成功"
-assert str(sent[3]) == "装备 青铜渔具 成功"
+assert sent[2][0].id == "1" and str(sent[2][-1]) == "购买 青铜渔具 成功"
+assert sent[3][0].id == "1" and str(sent[3][-1]) == "装备 青铜渔具 成功"
 asyncio.run(runtime.show_inventory(SimpleNamespace(), event, "123", page_text="999"))
 try:
     asyncio.run(runtime.show_inventory(SimpleNamespace(), event, "123", page_text="abc"))
@@ -95,12 +128,12 @@ else:
 from infinite_mutation_fishing.qq import profiles
 profiles.fetch_avatar = lambda *args, **kwargs: (_ for _ in ()).throw(ValueError("unavailable"))
 asyncio.run(runtime.show_panel(SimpleNamespace(), event, "123"))
-assert sent[-1][0].name == "mutation-panel.webp"
+assert sent[-1][0].id == "1" and sent[-1][-1].name == "mutation-panel.webp"
 
 asyncio.run(runtime.show_help(SimpleNamespace(), event, "123", "2"))
-assert sent[-1][0].name == "mutation-help-2.webp"
+assert sent[-1][-1].name == "mutation-help-2.webp"
 asyncio.run(runtime.show_progression(SimpleNamespace(), event, "123", "club"))
-assert sent[-1][0].name == "mutation-club.webp"
+assert sent[-1][-1].name == "mutation-club.webp"
 for name in ("recipes", "equipment", "materials", "club", "craft", "enhance", "recycle", "donate", "analyze", "lock"):
     assert getattr(module, name) is not None
 
@@ -118,13 +151,13 @@ class LeaveRepository:
 runtime.get_repository = lambda: LeaveRepository()
 before = len(sent)
 async def wait_for_leave():
-    runtime.schedule_leave(SimpleNamespace(), "123", clock.time())
-    runtime.schedule_leave(SimpleNamespace(), "123", clock.time())
+    runtime.schedule_leave("123", clock.time())
+    runtime.schedule_leave("123", clock.time())
     await asyncio.sleep(1.2)
 asyncio.run(wait_for_leave())
 assert [str(message) for message in sent[before:]] == ["鱼离开了..."]
 assert leave_state["spawn"] is None and "fish_left" not in leave_state
-runtime.schedule_leave(SimpleNamespace(), "123", None)
+runtime.schedule_leave("123", None)
 
 '''
     env = {**os.environ, "PYTHONPATH": os.pathsep.join([str(package_src), str(tmp_path)])}

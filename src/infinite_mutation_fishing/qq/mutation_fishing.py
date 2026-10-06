@@ -26,11 +26,10 @@ plugin_manager.register_plugin(PLUGIN_META)
 
 
 def resolve_group_id(event: Event) -> str | None:
-    group_id = getattr(event, "group_id", None) or getattr(event, "group_openid", None)
-    data = getattr(event, "data", None)
-    if group_id is None and getattr(data, "message_scene", None) == "group":
-        group_id = getattr(data, "peer_id", None)
-    return str(group_id) if group_id is not None else None
+    """Real group number for this event, or None when this bot should not answer it."""
+    from .chat import speaker
+    who = speaker(event)
+    return who.group_id if who else None
 
 
 async def enabled_in_group(event: Event) -> bool:
@@ -50,14 +49,8 @@ async def catch_command(bot: Bot, event: Event):
 
 
 async def run_action(action, bot, event):
-    from ..errors import GameError, SilentError
-    try:
-        await action(bot, event, resolve_group_id(event))
-    except SilentError:
-        return
-    except GameError as exc:
-        from nonebot_plugin_alconna import UniMessage
-        await UniMessage.text(str(exc)).send()
+    from .chat import run_as_speaker
+    await run_as_speaker(action, bot, event)
 
 
 help_card = on_command("捕鱼帮助", rule=enabled_in_group, force_whitespace=True)
@@ -192,7 +185,10 @@ lineage = on_command("族谱", rule=enabled_in_group, force_whitespace=True)
 async def lineage_command(bot: Bot, event: Event):
     from nonebot_plugin_alconna import UniMessage
     from ..lineage import lineage_url
-    await UniMessage.text(f"本群的鱼族谱：\n{lineage_url(resolve_group_id(event))}").send()
+    async def action(bot, event, group_id):
+        from .chat import reply
+        await reply(UniMessage.text(f"本群的鱼族谱：\n{lineage_url(group_id)}"))
+    await run_action(action, bot, event)
 
 
 
