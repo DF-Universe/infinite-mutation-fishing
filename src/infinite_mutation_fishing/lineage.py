@@ -42,10 +42,13 @@ def _drawing(fish):
 
 
 def lineage_view(state):
+    from .progression import upgrade_progression, public_recipe
+    upgrade_progression(state)
     rarities = SETTINGS["rarities"]
     species = []
     for fish in state["species"].values():
         species.append({
+            "equipment": public_recipe(state["templates"][fish["id"]]) if fish["id"] in state["templates"] else None,
             "id": fish["id"], "name": fish["name"], "description": fish.get("description", ""),
             "rarity": fish["rarity"], "rarity_color": rarities.get(fish["rarity"], {}).get("color", "#378976"),
             "generation": fish["generation"], "parent_id": fish.get("parent_id"),

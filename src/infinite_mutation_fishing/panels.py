@@ -9,10 +9,11 @@ import math
 
 from PIL import Image, ImageDraw
 
+from .affix_badges import affix_chips
 from .capture import SETTINGS, average_power, spawn_odds
 from .shapes import LABELS, normalize, shape_key
-from .economy import feed_status, ITEMS, expire_buffs, fishing_power, mutation_power
-from .visuals import BACKGROUND, INK, MUTED, TEAL, WIDTH, FishVisual, _card, _fish_icon, _fish_name, _fit, _font, _rarity, _text, _webp
+from .economy import feed_status, ITEMS, expire_buffs, fishing_power, mutation_power, equipped_items
+from .visuals import draw_text, BACKGROUND, INK, MUTED, TEAL, WIDTH, FishVisual, _card, _fish_icon, _fish_name, _fit, _font, _rarity, _text, _webp
 
 MARGIN = 28
 INNER = WIDTH - MARGIN * 2
@@ -64,20 +65,20 @@ def wrap(text, size, max_width, max_lines):
 
 
 def _right(draw, position, text, size, fill):
-    draw.text(position, str(text), font=_font(size), fill=fill, anchor="rt")
+    draw_text(draw, position, str(text), font=_font(size), fill=fill, anchor="rt")
 
 
 def _badge(draw, box, item, fill=None):
     fg, tint = rarity_colors(item["rarity"])
     draw.rounded_rectangle(box, radius=14, fill=fill or tint)
     x1, y1, x2, y2 = box
-    draw.text(((x1 + x2) / 2, (y1 + y2) / 2), str(item["id"]), font=_font(18), fill=fg, anchor="mm")
+    draw_text(draw, ((x1 + x2) / 2, (y1 + y2) / 2), str(item["id"]), font=_font(14 if len(str(item["id"])) > 3 else 18), fill=fg, anchor="mm")
 
 
 def _pill(draw, x_right, y, text, fg, fill, size=13):
     width = _font(size).getlength(text) + 20
     draw.rounded_rectangle((x_right - width, y, x_right, y + size + 12), radius=(size + 12) / 2, fill=fill)
-    draw.text((x_right - width / 2, y + (size + 12) / 2), text, font=_font(size), fill=fg, anchor="mm")
+    draw_text(draw, (x_right - width / 2, y + (size + 12) / 2), text, font=_font(size), fill=fg, anchor="mm")
     return width
 
 
@@ -124,7 +125,7 @@ def create_shop_panel(items):
             _text(draw, (x + 18, y + 88 + line_no * 22), line, 14, MUTED)
         draw.rounded_rectangle((x + 12, y + tile_h - 50, x + tile_w - 12, y + tile_h - 12), radius=12, fill=GOLD_TINT)
         _coin(draw, x + 34, y + tile_h - 31)
-        draw.text((x + 54, y + tile_h - 31), f"{item.get('price', 0):,}", font=_font(21), fill=GOLD, anchor="lm")
+        draw_text(draw, (x + 54, y + tile_h - 31), f"{item.get('price', 0):,}", font=_font(21), fill=GOLD, anchor="lm")
     _footer(draw, height, "发送「商店购买 编号」购买商品")
     return image
 
@@ -142,6 +143,9 @@ def _item_tile(draw, x, y, w, h, item, count, tag=None, fill="white"):
     if item["type"] in ("rod", "tool"):
         _text(draw, (text_x, line_y), _fit(_stats_text(item), 14, text_w), 14, rarity_colors(item["rarity"])[0])
         line_y += 22
+    if item.get("affixes"):
+        affix_chips(draw, text_x, line_y + 2, item["affixes"], text_w, 12, 22, 5, (h - (line_y - y) - 6) // 27)
+        return
     for line_no, line in enumerate(wrap(item["description"], 14, text_w, (h - (line_y - y)) // 20)):
         _text(draw, (text_x, line_y + line_no * 20), line, 14, MUTED)
 
@@ -153,7 +157,7 @@ def _item_grid(items, title, eyebrow, footer, tags=None, fills=None):
     image, draw = _card(height, title, eyebrow)
     if not items:
         draw.rounded_rectangle((MARGIN, TOP, WIDTH - MARGIN, TOP + tile_h), radius=19, fill="white")
-        draw.text((WIDTH / 2, TOP + tile_h / 2), "这里还什么都没有", font=_font(20), fill=MUTED, anchor="mm")
+        draw_text(draw, (WIDTH / 2, TOP + tile_h / 2), "这里还什么都没有", font=_font(20), fill=MUTED, anchor="mm")
     for index, (item, count) in enumerate(items):
         x = MARGIN + index % columns * (tile_w + GAP)
         y = TOP + index // columns * (tile_h + GAP)
@@ -183,7 +187,7 @@ def _avatar(image, draw, avatar, name, box):
     size = x2 - x1
     if avatar is None:
         draw.ellipse(box, fill="#E3F2EB")
-        draw.text(((x1 + x2) / 2, (y1 + y2) / 2), (name or "?")[:1], font=_font(40), fill=TEAL, anchor="mm")
+        draw_text(draw, ((x1 + x2) / 2, (y1 + y2) / 2), (name or "?")[:1], font=_font(40), fill=TEAL, anchor="mm")
         return
     mask = Image.new("L", (size * 4, size * 4))
     ImageDraw.Draw(mask).ellipse((0, 0, size * 4 - 1, size * 4 - 1), fill=255)
@@ -232,7 +236,7 @@ def create_character_panel(view, avatar=None):
             draw.line((52, y - 10, WIDTH - 52, y - 10), fill=SOFT, width=2)
         if item is None:
             draw.rounded_rectangle((52, y + 4, 104, y + 56), radius=14, fill=SOFT)
-            draw.text((78, y + 30), slot, font=_font(15), fill=MUTED, anchor="mm")
+            draw_text(draw, (78, y + 30), slot, font=_font(15), fill=MUTED, anchor="mm")
             _text(draw, (120, y + 10), f"{slot}：未装备", 18, MUTED)
             _text(draw, (120, y + 38), "发送「背包」查看可装备的道具", 14, MUTED)
             continue
@@ -241,6 +245,9 @@ def create_character_panel(view, avatar=None):
         _text(draw, (120, y + 6), name, 19)
         _text(draw, (120 + _font(19).getlength(name) + 12, y + 9), _stats_text(item), 15,
               rarity_colors(item["rarity"])[0])
+        if item.get("affixes"):
+            affix_chips(draw, 120, y + 34, item["affixes"], WIDTH - 172, 13, 24, 6, 1)
+            continue
         for line_no, line in enumerate(wrap(item["description"], 14, WIDTH - 172, 2)):
             _text(draw, (120, y + 34 + line_no * 20), line, 14, MUTED)
 
@@ -264,12 +271,22 @@ def create_character_panel(view, avatar=None):
     return image
 
 
-def inventory_page(player, page=1):
+def inventory_page(player, page=1, state=None):
     items = [(ITEMS[key], count) for key, count in sorted(player["bag"].items(), key=lambda row: int(row[0]))
              if key in ITEMS and count > 0]
+    if state:
+        from .progression import equipment_item
+        for template in state.get('templates', {}).values():
+            fid = template['species_id']
+            if fid in player.get('crafted', {}):
+                items.append((equipment_item(template, player['crafted'][fid]), 1))
+            count = player.get('materials', {}).get(fid, 0)
+            if count:
+                items.append(({'id':template['material_id'], 'name':template['material_name'], 'rarity':4, 'type':'material',
+                               'description':f"SSR 核心 · 用于制造与强化 {template['name']}"}, count))
     pages = max(1, (len(items) + 9) // 10)
     page = min(max(1, page), pages)
-    equipped = [int(value) for value in player["equipment"].values() if value is not None]
+    equipped = [int(value) if str(value).isdigit() else value for value in player["equipment"].values() if value is not None]
     return items[(page - 1) * 10:page * 10], page, pages, equipped
 
 
@@ -280,9 +297,9 @@ def character_view(player, state, user_id, now):
     return {
         "name": player["name"], "level": level, "exp": player["experience"],
         "target_exp": int((level + 19) * 1.1 ** (level / 10)),
-        "coins": player["coins"], "mutation": mutation_power(player), "fever": fever,
-        "power": fishing_power(player, fever, now), "total_caught": sum(caught.values()),
-        "equipment": [(label, ITEMS.get(str(player["equipment"].get(slot)))) for slot, label in (("rod", "渔具"), ("tool", "工具"))],
+        "coins": player["coins"], "mutation": mutation_power(player, state), "fever": fever,
+        "power": fishing_power(player, fever, now, state=state), "total_caught": sum(caught.values()),
+        "equipment": [(label, next((item for item in equipped_items(player, state) if item["type"] == slot), None)) for slot, label in (("rod", "渔具"), ("tool", "工具"))],
         "species": [{"name": fish["name"], "rarity": fish["rarity"], "caught": caught.get(fish["id"], 0) > 0,
                      "colors": tuple(fish["colors"][key] for key in ("body", "markings", "fins")),
                      "shape": shape_key(fish.get("shape"))}
@@ -295,12 +312,19 @@ def render_shop_panel():
     return _webp(create_shop_panel([item for item in ITEMS.values() if item["buyable"]]))
 
 
-def render_inventory_panel(player, page=1):
-    return _webp(create_inventory_panel(*inventory_page(player, page)))
+def render_inventory_panel(player, page=1, state=None):
+    return _webp(create_inventory_panel(*inventory_page(player, page, state)))
 
 
 def render_character_panel(player, state, user_id, now, avatar=None):
-    return _webp(create_character_panel(character_view(player, state, user_id, now), avatar))
+    from .progression_panels import create_loadout_card
+    base = create_character_panel(character_view(player, state, user_id, now), avatar)
+    tail = create_loadout_card(equipped_items(player, state), fishing_power(player, False, now, state=state),
+                               fishing_power(player, True, now, state=state), state.get('club', {}).get('level', 0))
+    image = Image.new('RGB', (WIDTH, base.height+tail.height), BACKGROUND)
+    image.paste(base, (0, 0))
+    image.paste(tail, (0, base.height))
+    return _webp(image)
 
 
 def render_gacha_panel(rows):
@@ -357,7 +381,7 @@ def status_view(state, player, now, mode):
 def _text_badge(draw, box, text, fg, tint):
     draw.rounded_rectangle(box, radius=14, fill=tint)
     x1, y1, x2, y2 = box
-    draw.text(((x1 + x2) / 2, (y1 + y2) / 2), text, font=_font(15), fill=fg, anchor="mm")
+    draw_text(draw, ((x1 + x2) / 2, (y1 + y2) / 2), text, font=_font(15), fill=fg, anchor="mm")
 
 
 def _status_row(draw, y, title, detail, right=None, detail_color=MUTED):
@@ -522,10 +546,10 @@ def create_birth_card(child, parent):
     image.paste(icon, ((WIDTH - 380) // 2, TOP + 58), icon)
     name = _fit(child["name"], 30, INNER - 80)
     _fish_name(draw, ((WIDTH - _font(30).getlength(name)) / 2, TOP + 290), name, 30)
-    draw.text((WIDTH / 2, TOP + 338), _fit(shape_text(child.get("shape")), 16, INNER - 80), font=_font(16),
+    draw_text(draw, (WIDTH / 2, TOP + 338), _fit(shape_text(child.get("shape")), 16, INNER - 80), font=_font(16),
               fill=TEAL, anchor="mt")
     for index, line in enumerate(description):
-        draw.text((WIDTH / 2, TOP + 372 + index * 27), line, font=_font(17), fill=MUTED, anchor="mt")
+        draw_text(draw, (WIDTH / 2, TOP + 372 + index * 27), line, font=_font(17), fill=MUTED, anchor="mt")
 
     chip_w = (INNER - GAP * 2) // 3
     profiles = child.get("profiles") or []

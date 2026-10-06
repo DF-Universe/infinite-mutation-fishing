@@ -11,7 +11,7 @@ from .. import GAME_NAME
 from ..capture import SETTINGS, GameError, get_player, refresh, request_spawn, tick, start_fever, spawn_fish, take_fish_left
 from ..repository import get_repository
 from ..shapes import shape_key
-from ..visuals import FishVisual, failure_text, render_catch_card, render_spawn_card
+from ..visuals import FishVisual, failure_text, capture_details, render_catch_card, render_spawn_card
 from ..economy import feed_status, ITEMS, fishing_power, mutation_power
 from ..panels import render_shop_panel, render_inventory_panel, render_character_panel, render_gacha_panel, render_status_panel, render_birth_card
 from io import BytesIO
@@ -107,11 +107,17 @@ async def handle_catch(bot, event, group_id):
                                   experience=result["experience"], mutation_contribution=Decimal(result["contribution"])/1000,
                                   contribution_note=result["note"], success=result["success"],
                                   success_rate=result["success_rate"],
-                                  mutation_progress=Decimal(result["mutation_progress"])/1000)
+                                  mutation_progress=Decimal(result["mutation_progress"])/1000, reward_details=capture_details(result))
     await (reply + image_message(data, "mutation-catch.webp")).send()
 
 
-async def show_help(bot, event, group_id):
+async def show_help(bot, event, group_id, page=""):
+    if page == "2":
+        from ..progression_panels import render_expansion_help
+        await image_message(await asyncio.to_thread(render_expansion_help), "mutation-help-2.webp").send()
+        return
+    if page not in ("", "1"):
+        raise GameError("发送「捕鱼帮助」或「捕鱼帮助 2」")
     from ..help_card import render_help_card
     data = await asyncio.to_thread(render_help_card)
     await image_message(data, "mutation-help.webp").send()
@@ -124,14 +130,14 @@ async def show_pond(bot, event, group_id):
         refresh(state, now)
         player = get_player(state, event.get_user_id())
         fish = state["species"][state["spawn"]["fish_id"]] if state["spawn"] else None
-        return {"player": player.copy(), "fish": fish, "spawn": state["spawn"],
+        return {"player": player.copy(), "power":fishing_power(player,now < state["fever_until"],now,state=state), "mutation":mutation_power(player,state), "fish": fish, "spawn": state["spawn"],
                 "feed_status": feed_status(state, now), "feeds": state["feeds"], "fever_until": state["fever_until"], "species": len(state["species"]),
                 "pending": sum(j["status"] != "done" for j in state["jobs"].values())}
     result = await asyncio.to_thread(repository.transact, group_id, transition)
     player = result["player"]
     fever = now < result["fever_until"]
     lines = [f"《{GAME_NAME}》", f"Lv.{player['level']} · 金币 {player['coins']} · 经验 {player['experience']}",
-             f"渔力 {fishing_power(player, fever, now)} · 变异力 {mutation_power(player)}",
+             f"渔力 {result['power']} · 变异力 {result['mutation']}",
              f"今日投饵 {result['feeds']} 份 · 已有 {result['species']} 个鱼种",
              result["feed_status"],
              f"每天 19:30 判定鱼群，当天投满 {SETTINGS['fever_feed_target']} 份必定触发",
@@ -162,7 +168,7 @@ async def handle_sign_in(bot, event, group_id):
                                   experience=result["experience"], mutation_contribution=Decimal(result["contribution"])/1000,
                                   contribution_note=result["note"],
                                   mutation_progress=Decimal(result["mutation_progress"])/1000,
-                                  title="签到成功", eyebrow=f"金币经验 ×{result['reward_multiplier']}")
+                                  title="签到成功", eyebrow=f"金币经验 ×{result['reward_multiplier']}", reward_details=capture_details(result))
     await image_message(data, "mutation-signin.webp").send()
 
 
@@ -177,6 +183,10 @@ async def handle_economy(bot, event, group_id, operation, payload):
     if result.get("duplicate"):
         return
     kind = result["kind"]
+    if kind == "progression":
+        from ..progression_panels import render_progression_card
+        await image_message(await asyncio.to_thread(render_progression_card, result), "mutation-action.webp").send()
+        return
     if kind == "draw":
         data = await asyncio.to_thread(render_gacha_panel, result["items"])
         await image_message(data, "mutation-gacha.webp").send()
@@ -197,9 +207,9 @@ async def show_inventory(bot, event, group_id, shop=False, page_text=""):
             raise GameError("页数必须是数字")
         def transition(state):
             refresh(state, time.time())
-            return get_player(state, event.get_user_id())
-        player = await asyncio.to_thread(get_repository().transact, group_id, transition)
-        data = await asyncio.to_thread(render_inventory_panel, player, page)
+            return get_player(state, event.get_user_id()), state
+        player, state = await asyncio.to_thread(get_repository().transact, group_id, transition)
+        data = await asyncio.to_thread(render_inventory_panel, player, page, state)
     await image_message(data, "mutation-shop.webp" if shop else "mutation-inventory.webp").send()
 
 
@@ -309,7 +319,7 @@ async def scheduled_tick():
 async def scheduled_mutations():
     from src.data_access.open_helper import get_private_bot
     from src.data_access.plugin_manager import plugin_manager
-    from ..generation import process_pending
+    from ..generation import process_pending, process_equipment_text
     try:
         bot = get_private_bot()
         groups = await bot.get_group_list()
@@ -325,6 +335,24 @@ async def scheduled_mutations():
             if child:
                 parent = (await asyncio.to_thread(repository.read, group_id))["species"][child["parent_id"]]
                 data = await asyncio.to_thread(render_birth_card, child, parent)
-                await image_message(data, "mutation-birth.webp").send(target=Target(str(group_id)), bot=bot)
+                message = image_message(data, "mutation-birth.webp")
+                if child['rarity'] == 'SSR':
+                    current = await asyncio.to_thread(repository.read,group_id)
+                    template = current['templates'][child['id']]
+                    message += UniMessage.text(f"\n专属配方 {template['recipe_id']} 已公开，发送「配方 {template['recipe_id']}」查看。")
+                await message.send(target=Target(str(group_id)), bot=bot)
+            await process_equipment_text(repository,group_id)
         except Exception as exc:
             logger.warning(f"变异生成暂未完成，将自动重试：{group_id} ({type(exc).__name__})")
+
+
+async def show_progression(bot, event, group_id, mode, argument=''):
+    from ..progression import collection_view
+    from ..progression_panels import render_progression_card
+    now = time.time()
+    def transition(state):
+        refresh(state,now)
+        player = get_player(state,event.get_user_id())
+        return collection_view(state,player,mode,argument,now)
+    view = await asyncio.to_thread(get_repository().transact,group_id,transition)
+    await image_message(await asyncio.to_thread(render_progression_card,view),f'mutation-{mode}.webp').send()

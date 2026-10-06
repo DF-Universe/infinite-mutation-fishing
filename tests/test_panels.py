@@ -48,6 +48,7 @@ def test_character_panel_lists_species_and_handles_avatar():
         state['species'][f'f{index}'] = {**ancestor, 'id': f'f{index}', 'name': f'鱼{index}', 'contributors': ['a']}
     player = get_player(state, 'a', '测试')
     player['equipment']['tool'] = '105'
+    player['bag']['105'] = 1
     view = panels.character_view(player, state, 'a', NOW)
     assert view['contributed'] == 50 and len(view['species']) == 51
     assert view['equipment'][0] == ('渔具', None) and view['equipment'][1][1]['id'] == 105

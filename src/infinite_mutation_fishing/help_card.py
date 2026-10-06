@@ -9,7 +9,7 @@ from PIL import ImageDraw
 
 from .capture import SETTINGS
 from .panels import GAP, GOLD, GOLD_TINT, INNER, MARGIN, SOFT, wrap
-from .visuals import BACKGROUND, INK, MUTED, TEAL, WIDTH, _card, _fish_icon, _font, _text, _webp
+from .visuals import draw_text, BACKGROUND, INK, MUTED, TEAL, WIDTH, _card, _fish_icon, _font, _text, _webp
 
 ANCESTOR = json.loads((Path(__file__).resolve().parents[2] / "data" / "ancestor-fish.json").read_text(encoding="utf-8"))
 BLUE, BLUE_TINT = "#427AB0", "#EAF2FB"
@@ -104,7 +104,7 @@ def create_help_card():
     for index, ((title, color, tint, _), lines, (x, y)) in enumerate(zip(LOOP, step_lines, positions)):
         draw.rounded_rectangle((x, y, x + step_w, y + step_h), radius=19, fill=tint)
         draw.ellipse((x + 20, y + 20, x + 52, y + 52), fill=color)
-        draw.text((x + 36, y + 36), str(index + 1), font=_font(19, True), fill="white", anchor="mm")
+        draw_text(draw, (x + 36, y + 36), str(index + 1), font=_font(19, True), fill="white", anchor="mm")
         _text(draw, (x + 64, y + 22), title, 24, color, True)
         for row, line in enumerate(lines):
             _text(draw, (x + 24, y + 70 + row * 29), line, 19, INK)
@@ -120,7 +120,7 @@ def create_help_card():
     cx, cy = WIDTH // 2, grid_top + step_h + 30
     image.paste(icon, (cx - icon.width // 2, cy - icon.height // 2), icon)
     note = "新鱼会和亲代一起留在鱼塘里，各自继续变异"
-    draw.text((WIDTH // 2, loop_top + loop_h - 32), note, font=_font(17), fill=MUTED, anchor="mm")
+    draw_text(draw, (WIDTH // 2, loop_top + loop_h - 32), note, font=_font(17), fill=MUTED, anchor="mm")
 
     # ── 每天可以做的事 ──
     draw.rounded_rectangle((MARGIN, daily_top, WIDTH - MARGIN, daily_top + daily_h), radius=24, fill="white")
@@ -146,7 +146,7 @@ def create_help_card():
 
     tip = "第一次玩：先发「签到」领今天的鱼，鱼塘刷鱼时再发「捕鱼」。"
     draw.rounded_rectangle((MARGIN, footer_top, WIDTH - MARGIN, footer_top + 44), radius=22, fill=TEAL_TINT)
-    draw.text((WIDTH // 2, footer_top + 22), tip, font=_font(19, True), fill=TEAL, anchor="mm")
+    draw_text(draw, (WIDTH // 2, footer_top + 22), tip, font=_font(19, True), fill=TEAL, anchor="mm")
     return image
 
 

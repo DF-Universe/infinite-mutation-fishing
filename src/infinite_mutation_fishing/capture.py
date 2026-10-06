@@ -15,8 +15,11 @@ from .balance import birth_stats
 from .errors import GameError, NoFishError, SilentError
 from .economy import (
     ITEMS, ensure_inventory, fishing_power, mutation_power, reward_percent,
-    spend_attempt_buff, buy_item, draw_items, use_item,
+    spend_attempt_buff, buy_item, draw_items, use_item, equipped_items,
 )
+
+from .affixes import effects, rewards
+from .progression import upgrade_progression, ensure_player as ensure_progression_player, ensure_template, add_research, progression_command
 
 DATA = Path(__file__).resolve().parents[2] / "data"
 SETTINGS = json.loads((DATA / "capture-settings.json").read_text(encoding="utf-8"))
@@ -52,6 +55,8 @@ def upgrade_state(state):
             levels = [state["players"][uid]["level"] for uid in job["contributors"]]
             job["birth_stats"] = birth_stats(job["rarity"], levels, SETTINGS["rarities"])
             job["level_snapshot_source"] = "legacy_migration"
+
+    upgrade_progression(state)
 
 
 def day_at(now):
@@ -89,6 +94,7 @@ def get_player(state, user_id, display_name="", now=0):
     if display_name:
         player["name"] = display_name[:100]
     ensure_inventory(player)
+    ensure_progression_player(player, state)
     return player
 
 
@@ -114,7 +120,7 @@ def contribution_base(state, species, user_id):
     return 1000 if parent and user_id in parent["contributors"] else 5000
 
 
-def add_contribution(state, spawn, species, user_id, player, now, rng, multiplier=1):
+def add_contribution(state, spawn, species, user_id, player, now, rng, multiplier=1, snapshot=None):
     if spawn["contribution_claimed"]:
         return 0, "本轮的有效变异贡献机会已被使用", None
     if species["pending"]:
@@ -122,8 +128,9 @@ def add_contribution(state, spawn, species, user_id, player, now, rng, multiplie
     base = contribution_base(state, species, user_id)
     if not base:
         return 0, "当前鱼种或直接子代与你有关，本次不贡献", None
-    jitter = rng.randint(850, 1000)
-    nominal = int(Decimal(base) * (1 + Decimal(str(mutation_power(player))) / 100) * jitter / 1000 * multiplier)
+    snapshot = snapshot or contribution_snapshot(state, player)
+    jitter = rng.randint(snapshot['jitter'], 1000)
+    nominal = int(Decimal(base) * (1 + Decimal(str(snapshot['mutation'])) / 100) * jitter / 1000 * multiplier)
     contributors = species["contributions"]
     maximum = 100000 if any(uid != user_id and value > 0 for uid, value in contributors.items()) else 99000
     actual = max(0, min(nominal, maximum - species["progress"]))
@@ -180,7 +187,7 @@ def rarity_spawn_weights(state, fever, base=False):
 
 def average_power(state, now, fever):
     active_players = [p for p in state["players"].values() if now-p["updated_at"] < 86400]
-    return sum(fishing_power(p, fever, now) for p in active_players) / max(1, len(active_players))
+    return sum(fishing_power(p, fever, now, state=state) for p in active_players) / max(1, len(active_players))
 
 
 def species_weights(fishes, average):
@@ -245,6 +252,24 @@ def catch_rate(power, difficulty):
     return (100 - 40 * .9 ** (diff/5)) if diff > 0 else (60 * .9 ** (-diff/5))
 
 
+def contribution_snapshot(state, player):
+    effect = effects(player, equipped_items(player, state))
+    return {'mutation': mutation_power(player, state), 'jitter': effect.get('catalyst', 850)}
+
+
+def progression_rewards(state, player, user_id, fish, success, parts, now):
+    material = None
+    if success:
+        player['parts'] += parts
+        if fish['rarity'] == 'SSR':
+            template = ensure_template(state, fish)
+            fid = fish['id']
+            player['materials'][fid] = player['materials'].get(fid, 0)+1
+            material = {'id':template['material_id'], 'name':template['material_name'], 'count':1, 'owned':player['materials'][fid]}
+    research, upgraded = add_research(state, player, user_id, now)
+    return {'material':material, 'parts_gained':parts, 'research':research, 'club_upgrade':upgraded}
+
+
 def catch_fish(state, user_id, name, now, rng):
     """Every fish stays for its whole lifetime; each player gets one attempt per spawn."""
     refresh(state, now)
@@ -256,18 +281,20 @@ def catch_fish(state, user_id, name, now, rng):
         raise SilentError("你已经尝试过这轮的鱼了，请等待下一次刷新")
     player = get_player(state, user_id, name, now)
     fish = state["species"][spawn["fish_id"]]
-    success_rate = catch_rate(fishing_power(player, spawn["fever"], now), fish["difficulty"])
+    effect = effects(player, equipped_items(player, state))
+    snapshot = contribution_snapshot(state, player)
+    success_rate = min(100, catch_rate(fishing_power(player, spawn["fever"], now, state=state), fish["difficulty"])*(100+effect.get('success',0))/100)
     spawn["attempted"].append(user_id)
     success = rng.random() < success_rate/100
-    value = fish["reward"] * (100 + reward_percent(player, now)) // 100
-    coins, experience = (value, value) if success else (0, 1)
+    coins, experience, parts, critical = rewards(fish["reward"], success, effect, rng, reward_percent(player, now))
     spend_attempt_buff(player)
     grant_rewards(player, coins, experience, now)
     contribution, note, job_id = 0, "捕获失败，本次不增加变异刻度", None
     if success:
         player["caught"][fish["id"]] = player["caught"].get(fish["id"], 0) + 1
-        contribution, note, job_id = add_contribution(state, spawn, fish, user_id, player, now, rng)
-    return {"fish": deepcopy(fish), "player_name": player["name"], "success": success,
+        contribution, note, job_id = add_contribution(state, spawn, fish, user_id, player, now, rng, snapshot=snapshot)
+    extra = progression_rewards(state, player, user_id, fish, success, parts, now)
+    return {**extra, "critical":critical, "fish": deepcopy(fish), "player_name": player["name"], "success": success,
             "coins": coins, "experience": experience, "contribution": contribution,
             "note": note, "level": player["level"],
             "job_id": job_id, "spawn_id": spawn["id"], "success_rate": success_rate,
@@ -283,10 +310,12 @@ def sign_in(state, user_id, name, now, rng):
     player = get_player(state, user_id, name, now)
     if player.get("signed_day") == state["day"]:
         raise GameError("今天已经签到过了，明天再来吧")
-    power = fishing_power(player, False, now, include_buffs=False)
+    effect = effects(player, equipped_items(player, state))
+    snapshot = contribution_snapshot(state, player)
+    power = fishing_power(player, False, now, include_buffs=False, state=state)
     candidates, weights = [], []
     for fish, odds in spawn_odds(state, now, base=True):
-        weight = odds * catch_rate(power, fish["difficulty"]) / 100
+        weight = odds * min(100, catch_rate(power, fish["difficulty"])*(100+effect.get("success",0))/100) / 100
         if contribution_base(state, fish, user_id) != SIGN_IN["full_contribution"]:
             weight *= SIGN_IN["related_weight"]
         candidates.append(fish)
@@ -295,15 +324,17 @@ def sign_in(state, user_id, name, now, rng):
     reward_multiplier = rng.randint(*SIGN_IN["reward_multiplier"])
     mutation_multiplier = rng.randint(*SIGN_IN["mutation_multiplier"])
     value = fish["reward"] * reward_multiplier
-    grant_rewards(player, value, value, now)
+    coins, experience, parts, critical = rewards(value, True, effect, rng)
+    grant_rewards(player, coins, experience, now)
     player["caught"][fish["id"]] = player["caught"].get(fish["id"], 0) + 1
     player["signed_day"] = state["day"]
     contribution, note, job_id = add_contribution(state, {"contribution_claimed": None}, fish, user_id, player,
-                                                  now, rng, mutation_multiplier)
+                                                  now, rng, mutation_multiplier, snapshot=snapshot)
     if contribution and not job_id:
         note = f"签到贡献 ×{mutation_multiplier} · 已计入变异进度"
-    return {"fish": deepcopy(fish), "player_name": player["name"], "success": True,
-            "coins": value, "experience": value, "contribution": contribution, "note": note,
+    extra = progression_rewards(state, player, user_id, fish, True, parts, now)
+    return {**extra, "critical":critical, "fish": deepcopy(fish), "player_name": player["name"], "success": True,
+            "coins": coins, "experience": experience, "contribution": contribution, "note": note,
             "level": player["level"], "job_id": job_id, "reward_multiplier": reward_multiplier,
             "mutation_multiplier": mutation_multiplier,
             "mutation_progress": 100000 if job_id else fish["progress"]}
@@ -355,6 +386,7 @@ def finish_mutation(state, job_id, generated):
              "profiles": generated["profiles"], "progress": 0, "contributions": {},
              "round": 0, "pending": None, **job["birth_stats"]}
     state["species"][job_id] = child
+    ensure_template(state, child)
     job.update(status="done", child_id=job_id)
     parent["pending"] = None
     return deepcopy(child)
@@ -375,4 +407,6 @@ def apply_command(state, operation, user_id, name, now, rng=None, payload=None):
         return draw_items(player, payload.get("mode", ""), rng)
     if operation == "use":
         return use_item(state, player, payload.get("item", ""), now, force=payload.get("force", False))
+    if operation in {"craft", "enhance", "recycle", "donate", "analyze", "lock"}:
+        return progression_command(state, player, user_id, operation, payload.get("text", ""), now)
     raise GameError("未知操作")

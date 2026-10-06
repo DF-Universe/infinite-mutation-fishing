@@ -64,9 +64,11 @@ help_card = on_command("捕鱼帮助", rule=enabled_in_group, force_whitespace=T
 
 
 @help_card.handle()
-async def help_command(bot: Bot, event: Event):
+async def help_command(bot: Bot, event: Event, args: Message = CommandArg()):
     from .runtime import show_help
-    await run_action(show_help, bot, event)
+    async def action(bot,event,group_id):
+        await show_help(bot,event,group_id,args.extract_plain_text().strip())
+    await run_action(action,bot,event)
 
 
 pond = on_command("鱼塘", rule=enabled_in_group, force_whitespace=True)
@@ -191,3 +193,31 @@ async def lineage_command(bot: Bot, event: Event):
     from nonebot_plugin_alconna import UniMessage
     from ..lineage import lineage_url
     await UniMessage.text(f"本群的鱼族谱：\n{lineage_url(resolve_group_id(event))}").send()
+
+
+
+def register_progression(command, operation, view=False):
+    matcher = on_command(command,rule=enabled_in_group,force_whitespace=True)
+    @matcher.handle()
+    async def handler(bot: Bot,event: Event,args: Message=CommandArg()):
+        from .runtime import handle_economy, show_progression
+        async def action(bot,event,group_id):
+            text = args.extract_plain_text().strip()
+            if view:
+                await show_progression(bot,event,group_id,operation,text)
+            else:
+                await handle_economy(bot,event,group_id,operation,{'text':text})
+        await run_action(action,bot,event)
+    return matcher
+
+
+recipes = register_progression('配方','recipes',True)
+equipment = register_progression('装备','equipment',True)
+materials = register_progression('材料','materials',True)
+club = register_progression('钓皇俱乐部','club',True)
+craft = register_progression('制造','craft')
+enhance = register_progression('强化','enhance')
+recycle = register_progression('回收','recycle')
+donate = register_progression('捐献','donate')
+analyze = register_progression('解析','analyze')
+lock = register_progression('锁定','lock')

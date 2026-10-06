@@ -195,6 +195,44 @@ button { font: inherit; color: inherit; }
 .progress .bar span { display: block; height: 100%; width: 0; background: var(--teal); border-radius: 6px; transition: width 1s ease; }
 .progress p { margin: 6px 0 0; font-size: 14px; color: var(--muted); }
 
+/* ---------- SSR equipment ---------- */
+.gear { border-radius: 20px; background: var(--soft); padding: 16px 16px 14px; }
+.gear-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px; }
+.gear-head b { font-weight: 400; font-size: 19px; }
+.gear-head .slot { font-size: 13px; padding: 0 10px; border-radius: 999px; background: #fff; color: var(--muted); }
+.gear-head .code { margin-left: auto; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.gear-stats { display: flex; gap: 18px; margin: 4px 0 12px; font-size: 15px; color: var(--muted); }
+.gear-stats b { font-weight: 400; font-size: 20px; font-variant-numeric: tabular-nums; }
+.gear-stats .power b { color: var(--teal); }
+.gear-stats .mutation b { color: #9064A8; }
+.affixes { display: flex; flex-wrap: wrap; gap: 8px; }
+.affix {
+  --fg: var(--teal); --bg: #E3F2EB;
+  border: 0; border-radius: 999px; padding: 3px 12px; background: var(--bg); color: var(--fg);
+  font-size: 15px; cursor: help; display: inline-flex; align-items: center; gap: 6px;
+}
+.affix[data-family="income"] { --fg: var(--gold); --bg: #FBF4E4; }
+.affix[data-family="critical"] { --fg: #9064A8; --bg: #F3ECF7; }
+.affix[data-family="capture"] { --fg: #427AB0; --bg: #EAF2FB; }
+.affix small { font-size: 12px; opacity: .8; font-variant-numeric: tabular-nums; }
+.affix[aria-expanded="true"] { box-shadow: inset 0 0 0 1.5px var(--fg); }
+.growth { list-style: none; margin: 16px 0 0; padding: 0; display: grid; grid-template-columns: repeat(4, 1fr); position: relative; }
+.growth::before { content: ""; position: absolute; left: 12.5%; right: 12.5%; top: 5px; height: 2px; background: #C9D9D2; }
+.growth li { position: relative; display: grid; justify-items: center; gap: 2px; font-size: 13px; color: var(--muted); text-align: center; }
+.growth li::before { content: ""; width: 12px; height: 12px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 2px var(--teal); margin-bottom: 4px; }
+.growth li span { color: var(--ink); font-size: 14px; }
+.gear-cost { margin: 14px 0 0; padding-top: 12px; border-top: 2px solid #fff; font-size: 14px; color: var(--muted); }
+.tip {
+  position: fixed; z-index: 30; max-width: min(280px, calc(100vw - 24px)); padding: 10px 14px; border-radius: 14px;
+  background: var(--deep); color: var(--mist); font-size: 14px; line-height: 1.6; pointer-events: none;
+  box-shadow: 0 10px 28px rgba(29, 59, 64, .28); opacity: 0; transform: translateY(4px); transition: opacity .15s ease, transform .15s ease;
+}
+.tip.show { opacity: 1; transform: none; }
+.tip b { font-weight: 400; font-size: 15px; color: #fff; }
+.tip .lv { color: #9FD6C4; margin-left: 6px; font-size: 13px; }
+.tip p { margin: 4px 0 0; }
+.tip .max { color: rgba(238, 244, 241, .65); font-size: 13px; }
+
 .notice { position: absolute; inset: 0; display: grid; place-items: center; padding: 32px; text-align: center; }
 .notice h2 { font-weight: 400; font-size: 28px; margin: 0 0 8px; }
 .notice p { margin: 0; color: var(--muted); }
@@ -246,6 +284,7 @@ button { font: inherit; color: inherit; }
   <aside class="panel" id="panel" aria-live="polite" aria-label="基因面板"></aside>
   <p class="hint" id="hint" hidden>轻点一条鱼，查看它的基因来源</p>
 </div>
+<div class="tip" id="tip" role="tooltip"></div>
 
 <script>
 (() => {
@@ -472,7 +511,74 @@ button { font: inherit; color: inherit; }
     return wrap;
   }
 
+  const tip = document.getElementById('tip');
+  let tipOwner = null;
+  function showTip(owner, affix, maxed) {
+    tipOwner = owner;
+    tip.replaceChildren();
+    const head = el('div');
+    head.append(el('b', '', affix.name), el('span', 'lv', `Lv.${affix.level} / ${affix.max}`));
+    tip.append(head, el('p', '', affix.text));
+    if (maxed && maxed.level > affix.level) tip.append(el('p', 'max', `+20 时 Lv.${maxed.level}：${maxed.text}`));
+    const box = owner.getBoundingClientRect();
+    tip.classList.add('show');
+    const width = tip.offsetWidth, height = tip.offsetHeight;
+    const left = Math.min(Math.max(12, box.left), innerWidth - width - 12);
+    const above = box.top - height - 8;
+    tip.style.left = left + 'px';
+    tip.style.top = (above > 12 ? above : box.bottom + 8) + 'px';
+    owner.setAttribute('aria-expanded', 'true');
+  }
+  function hideTip() {
+    tip.classList.remove('show');
+    tipOwner?.setAttribute('aria-expanded', 'false');
+    tipOwner = null;
+  }
+  panel.addEventListener('scroll', hideTip, { passive: true });
+  sea.addEventListener('scroll', hideTip, { passive: true });
+  document.addEventListener('pointerdown', event => { if (tipOwner && !tipOwner.contains(event.target)) hideTip(); });
+
+  function gearSection(recipe) {
+    const wrap = section('专属装备');
+    const card = el('div', 'gear');
+    const head = el('div', 'gear-head');
+    head.append(el('b', '', recipe.name), el('span', 'slot', recipe.slot === 'rod' ? '渔具' : '工具'),
+                el('span', 'code', `${recipe.recipe_id} · ${recipe.equipment_id}`));
+    const stats = el('div', 'gear-stats');
+    const stat = (cls, label, value) => { const s = el('span', cls, label + ' '); s.append(el('b', '', String(value))); return s; };
+    stats.append(stat('power', '渔力', recipe.power), stat('mutation', '变异力', recipe.mutation_power));
+    const maxed = new Map(recipe.growth[recipe.growth.length - 1].affixes.map(a => [a.key, a]));
+    const chips = el('div', 'affixes');
+    for (const affix of recipe.initial_affixes) {
+      const chip = el('button', 'affix', `【${affix.name}】`);
+      chip.type = 'button';
+      chip.dataset.family = affix.family;
+      chip.setAttribute('aria-expanded', 'false');
+      chip.setAttribute('aria-label', `${affix.name} Lv.${affix.level}：${affix.text}`);
+      chip.append(el('small', '', `Lv.${affix.level}`));
+      chip.addEventListener('pointerenter', event => { if (event.pointerType === 'mouse') showTip(chip, affix, maxed.get(affix.key)); });
+      chip.addEventListener('pointerleave', event => { if (event.pointerType === 'mouse') hideTip(); });
+      chip.addEventListener('focus', () => { if (chip.matches(':focus-visible')) showTip(chip, affix, maxed.get(affix.key)); });
+      chip.addEventListener('blur', hideTip);
+      chip.addEventListener('click', () => tipOwner === chip ? hideTip() : showTip(chip, affix, maxed.get(affix.key)));
+      chips.append(chip);
+    }
+    const growth = el('ol', 'growth');
+    growth.setAttribute('aria-label', '强化突破');
+    for (const stage of recipe.growth) {
+      const li = el('li', '', `+${stage.level}`);
+      li.append(el('span', '', stage.upgrade));
+      growth.append(li);
+    }
+    const cost = recipe.craft;
+    card.append(head, stats, chips, growth, el('p', 'gear-cost',
+      `制造：${recipe.material_name} ×${cost.materials} · 零件 ${cost.parts} · 金币 ${cost.coins.toLocaleString()} · 需钓皇俱乐部 Lv.${recipe.club_required}`));
+    wrap.append(card);
+    return wrap;
+  }
+
   function renderFishPanel(fish) {
+    hideTip();
     panel.replaceChildren();
     const close = el('button', 'panel-close', '收起');
     close.type = 'button';
@@ -486,6 +592,7 @@ button { font: inherit; color: inherit; }
     panel.append(close, hero, el('h2', '', fish.name), subline);
     if (fish.description) panel.append(el('p', 'description', fish.description));
 
+    if (fish.equipment) panel.append(gearSection(fish.equipment));
     const parent = byId.get(fish.parent_id);
     const genes = section('基因来源');
     const [first, second] = fish.profiles;

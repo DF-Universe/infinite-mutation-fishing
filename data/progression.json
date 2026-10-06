@@ -1,0 +1,381 @@
+{
+  "version": 1,
+  "initial_budget": 10,
+  "milestones": {
+    "5": 3,
+    "10": 5,
+    "15": 8,
+    "20": 12
+  },
+  "craft": {
+    "coins": 5000,
+    "parts": 30,
+    "materials": 3
+  },
+  "recycle": {
+    "101": 1,
+    "102": 3,
+    "103": 8,
+    "104": 20,
+    "105": 50
+  },
+  "personal_weekly_research": 14,
+  "group_weekly_research": 40,
+  "affixes": {
+    "power": {
+      "name": "渔力",
+      "cost": 3,
+      "values": [
+        5,
+        10,
+        15,
+        20,
+        30,
+        40,
+        50
+      ],
+      "description": "渔力 +{v}"
+    },
+    "mutation": {
+      "name": "变异",
+      "cost": 4,
+      "values": [
+        4,
+        8,
+        12,
+        16,
+        20
+      ],
+      "description": "变异力 +{v}"
+    },
+    "gold": {
+      "name": "巧舌",
+      "cost": 3,
+      "values": [
+        5,
+        10,
+        15,
+        20,
+        25,
+        30,
+        40
+      ],
+      "description": "捕获成功时金币收益 +{v}%"
+    },
+    "experience": {
+      "name": "熟能生巧",
+      "cost": 3,
+      "values": [
+        5,
+        10,
+        15,
+        20,
+        25,
+        30,
+        40
+      ],
+      "description": "捕获成功时经验收益 +{v}%"
+    },
+    "success": {
+      "name": "强行",
+      "cost": 3,
+      "values": [
+        5,
+        10,
+        15,
+        20,
+        30
+      ],
+      "description": "捕获成功率提升 {v}%（相对值）"
+    },
+    "failure": {
+      "name": "失败主义",
+      "cost": 2,
+      "values": [
+        10,
+        20,
+        30
+      ],
+      "description": "捕获失败时获得基础金币的 {v}%"
+    },
+    "critical": {
+      "name": "看破",
+      "cost": 3,
+      "values": [
+        5,
+        10,
+        15,
+        20,
+        30
+      ],
+      "description": "会心率 +{v}%，会心时金币与经验 ×1.5"
+    },
+    "luck": {
+      "name": "超幸运",
+      "cost": 4,
+      "values": [
+        160,
+        170,
+        180,
+        200
+      ],
+      "description": "会心收益倍率提升至 ×{x}"
+    },
+    "alchemy": {
+      "name": "点石成金",
+      "cost": 4,
+      "values": [
+        20,
+        40,
+        60
+      ],
+      "description": "金币收益 +{v}%，经验收益 −{half}%"
+    },
+    "study": {
+      "name": "潜心研习",
+      "cost": 4,
+      "values": [
+        20,
+        40,
+        60
+      ],
+      "description": "经验收益 +{v}%，金币收益 −{half}%"
+    },
+    "steady": {
+      "name": "稳健收获",
+      "cost": 4,
+      "values": [
+        105,
+        110,
+        115
+      ],
+      "description": "会心改为稳定结算：每次获得会心期望收益的 {v}%"
+    },
+    "gamble": {
+      "name": "孤注一掷",
+      "cost": 4,
+      "values": [
+        220,
+        240,
+        260
+      ],
+      "description": "会心率减半，会心额外收益提升至 {v}%"
+    },
+    "recycle": {
+      "name": "回收利用",
+      "cost": 4,
+      "values": [
+        1,
+        2,
+        3
+      ],
+      "description": "捕获成功时额外获得零件 {v}"
+    },
+    "collector": {
+      "name": "博物学识",
+      "cost": 4,
+      "values": [
+        1,
+        2,
+        3
+      ],
+      "description": "每收录 10 种鱼，变异力 +{v}（上限 100 种）"
+    },
+    "veteran": {
+      "name": "厚积薄发",
+      "cost": 2,
+      "values": [
+        1,
+        2,
+        3
+      ],
+      "description": "每 20 级渔力 +{v}（上限 200 级）"
+    },
+    "harvest": {
+      "name": "丰收",
+      "cost": 4,
+      "values": [
+        8,
+        16,
+        24
+      ],
+      "description": "金币与经验收益 +{v}%，渔力 −{n}"
+    },
+    "catalyst": {
+      "name": "稳定催化",
+      "cost": 3,
+      "values": [
+        900,
+        950,
+        1000
+      ],
+      "description": "变异贡献浮动下限提升至 {tenth}%（默认 85%）"
+    },
+    "resonance": {
+      "name": "器灵共鸣",
+      "cost": 4,
+      "values": [
+        3,
+        6,
+        9
+      ],
+      "description": "装备基础渔力的 {v}% 转化为变异力（上限 {n}）"
+    }
+  },
+  "club": [
+    {
+      "level": 0,
+      "coins": 0,
+      "parts": 0,
+      "research": 0,
+      "materials": 0,
+      "cap": null,
+      "uses": 0,
+      "minutes": 0,
+      "power": 0,
+      "mutation": 0,
+      "weekly": 0,
+      "bank": 0
+    },
+    {
+      "level": 1,
+      "coins": 5000,
+      "parts": 20,
+      "research": 10,
+      "materials": 0,
+      "cap": 0,
+      "uses": 1,
+      "minutes": 0,
+      "power": 0,
+      "mutation": 0,
+      "weekly": 0,
+      "bank": 0
+    },
+    {
+      "level": 2,
+      "coins": 20000,
+      "parts": 50,
+      "research": 15,
+      "materials": 0,
+      "cap": 5,
+      "uses": 1,
+      "minutes": 5,
+      "power": 0,
+      "mutation": 0,
+      "weekly": 0,
+      "bank": 0
+    },
+    {
+      "level": 3,
+      "coins": 65000,
+      "parts": 100,
+      "research": 20,
+      "materials": 0,
+      "cap": 5,
+      "uses": 2,
+      "minutes": 5,
+      "power": 10,
+      "mutation": 0,
+      "weekly": 0,
+      "bank": 0
+    },
+    {
+      "level": 4,
+      "coins": 150000,
+      "parts": 200,
+      "research": 25,
+      "materials": 0,
+      "cap": 10,
+      "uses": 2,
+      "minutes": 5,
+      "power": 10,
+      "mutation": 0,
+      "weekly": 2,
+      "bank": 4
+    },
+    {
+      "level": 5,
+      "coins": 350000,
+      "parts": 350,
+      "research": 30,
+      "materials": 10,
+      "cap": 10,
+      "uses": 2,
+      "minutes": 10,
+      "power": 10,
+      "mutation": 0,
+      "weekly": 2,
+      "bank": 6
+    },
+    {
+      "level": 6,
+      "coins": 700000,
+      "parts": 550,
+      "research": 35,
+      "materials": 20,
+      "cap": 10,
+      "uses": 3,
+      "minutes": 10,
+      "power": 10,
+      "mutation": 5,
+      "weekly": 2,
+      "bank": 6
+    },
+    {
+      "level": 7,
+      "coins": 1200000,
+      "parts": 800,
+      "research": 40,
+      "materials": 40,
+      "cap": 15,
+      "uses": 3,
+      "minutes": 15,
+      "power": 10,
+      "mutation": 5,
+      "weekly": 2,
+      "bank": 6
+    },
+    {
+      "level": 8,
+      "coins": 1800000,
+      "parts": 1100,
+      "research": 45,
+      "materials": 70,
+      "cap": 15,
+      "uses": 3,
+      "minutes": 15,
+      "power": 20,
+      "mutation": 10,
+      "weekly": 2,
+      "bank": 6
+    },
+    {
+      "level": 9,
+      "coins": 2500000,
+      "parts": 1500,
+      "research": 50,
+      "materials": 110,
+      "cap": 15,
+      "uses": 4,
+      "minutes": 15,
+      "power": 20,
+      "mutation": 10,
+      "weekly": 3,
+      "bank": 9
+    },
+    {
+      "level": 10,
+      "coins": 3200000,
+      "parts": 2000,
+      "research": 60,
+      "materials": 170,
+      "cap": 20,
+      "uses": 4,
+      "minutes": 20,
+      "power": 30,
+      "mutation": 10,
+      "weekly": 3,
+      "bank": 9
+    }
+  ]
+}

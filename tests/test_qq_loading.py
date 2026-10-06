@@ -97,6 +97,13 @@ profiles.fetch_avatar = lambda *args, **kwargs: (_ for _ in ()).throw(ValueError
 asyncio.run(runtime.show_panel(SimpleNamespace(), event, "123"))
 assert sent[-1][0].name == "mutation-panel.webp"
 
+asyncio.run(runtime.show_help(SimpleNamespace(), event, "123", "2"))
+assert sent[-1][0].name == "mutation-help-2.webp"
+asyncio.run(runtime.show_progression(SimpleNamespace(), event, "123", "club"))
+assert sent[-1][0].name == "mutation-club.webp"
+for name in ("recipes", "equipment", "materials", "club", "craft", "enhance", "recycle", "donate", "analyze", "lock"):
+    assert getattr(module, name) is not None
+
 import time as clock
 from infinite_mutation_fishing.capture import spawn_fish
 leave_state = initial_state()

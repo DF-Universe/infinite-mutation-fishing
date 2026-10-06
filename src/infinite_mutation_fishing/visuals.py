@@ -55,12 +55,35 @@ def _font(size: int, bold: bool = False):
     raise RuntimeError("Provide LXGWWenKai-Regular.ttf or set MUTATION_FISHING_FONT to its path")
 
 
+@lru_cache(maxsize=64)
+def _cjk_extent(font):
+    """Ink above / below the baseline for a CJK glyph, the reference every line aligns to."""
+    _, top, _, bottom = font.getbbox("级", anchor="ls")
+    return -top, bottom
+
+
+def draw_text(draw, position, text, font=None, fill=None, anchor="la", **kwargs):
+    """ImageDraw.text with one shared baseline per font size.
+
+    The BASIC layout engine aligns t/m/b anchors to each string's own ink, so "Lv.1"
+    and "强化" drawn at the same y end up on different baselines. Here every vertical
+    anchor is converted to a baseline measured from a CJK glyph instead.
+    """
+    x, y = position
+    font = font or _font(20)
+    horizontal, vertical = anchor[0], anchor[1]
+    if vertical != "s":
+        above, below = _cjk_extent(font)
+        y += {"a": above, "t": above, "m": (above - below) / 2, "b": -below, "d": -below}[vertical]
+    draw.text((x, y), str(text), font=font, fill=fill, anchor=horizontal + "s", **kwargs)
+
+
 def _text(draw, position, text, size=20, fill=INK, bold=False):
-    draw.text(position, str(text), font=_font(size, bold), fill=fill, anchor="lt")
+    draw_text(draw, position, text, font=_font(size, bold), fill=fill, anchor="lt")
 
 
 def _fish_name(draw, position, text, size):
-    draw.text(position, str(text), font=_font(size, True), fill=INK)
+    draw_text(draw, position, str(text), font=_font(size, True), fill=INK)
 
 
 def _fit(text, size, max_width, bold=False):
@@ -98,7 +121,7 @@ def _rarity(draw, fish, x, y):
     font = _font(17, True)
     left, top, right, bottom = font.getbbox(label, anchor="ls")
     baseline = y + 18 - (top + bottom) / 2
-    draw.text((x+30, baseline), label, font=font, fill="white", anchor="ls")
+    draw_text(draw, (x+30, baseline), label, font=font, fill="white", anchor="ls")
 
 
 def _webp(image) -> bytes:
@@ -125,7 +148,11 @@ def render_spawn_card(fish: FishVisual, *, fever: bool = False) -> bytes:
 
 def failure_text(result) -> str:
     """A failed catch is a plain one-line reply instead of a card."""
-    return f"捕获失败（成功率 {result['success_rate']:.2f}%），经验+{result['experience']}"
+    text = f"捕获失败（成功率 {result['success_rate']:.2f}%），经验+{result['experience']}"
+    if result.get('coins'):
+        text += f"，金币+{result['coins']}"
+    details = capture_details(result)
+    return text + ('\n'+'\n'.join(details) if details else '')
 
 
 def render_catch_card(
@@ -133,7 +160,7 @@ def render_catch_card(
     mutation_contribution: Decimal | float | int, contribution_note: str = "", success: bool = True,
     success_rate: Decimal | float | int | None = None,
     mutation_progress: Decimal | float | int | None = None,
-    title: str | None = None, eyebrow: str = "本次收获",
+    title: str | None = None, eyebrow: str = "本次收获", reward_details=None,
 ) -> bytes:
     """Display settled rewards; contribution is percentage points, not a ratio.
 
@@ -162,8 +189,8 @@ def render_catch_card(
     image = Image.new("RGB", (WIDTH, height), BACKGROUND)
     draw = ImageDraw.Draw(image)
     _text(draw, (30, 22), title or ("捕鱼成功" if success else "鱼儿没上钩"), 32, bold=True)
-    draw.text((WIDTH - 30, 20), "无限融合变异捕鱼", font=_font(15), fill=MUTED, anchor="rt")
-    draw.text((WIDTH - 30, 42), eyebrow, font=_font(17), fill=TEAL, anchor="rt")
+    draw_text(draw, (WIDTH - 30, 20), "无限融合变异捕鱼", font=_font(15), fill=MUTED, anchor="rt")
+    draw_text(draw, (WIDTH - 30, 42), eyebrow, font=_font(17), fill=TEAL, anchor="rt")
 
     draw.rounded_rectangle((24, 74, 776, 264), radius=24, fill="white")
     icon = _fish_icon(tuple(fish.colors), 290, fish.shape)
@@ -197,7 +224,7 @@ def render_catch_card(
     if progress is not None:
         progress_text = format(progress.quantize(Decimal("0.001")), "f").rstrip("0").rstrip(".")
         _text(draw, (44, 412), "变异进度", 20, TEAL)
-        draw.text((756, 412), f"{progress_text}% / 100%", font=_font(20), fill=TEAL, anchor="rt")
+        draw_text(draw, (756, 412), f"{progress_text}% / 100%", font=_font(20), fill=TEAL, anchor="rt")
         draw.rounded_rectangle((44, 446, 756, 462), radius=8, fill="#DCE8E2")
         if progress > 0:
             length = max(1, round(712 * float(progress) / 100))
@@ -205,7 +232,44 @@ def render_catch_card(
         note_y = 474
     draw.ellipse((44, note_y + 7, 52, note_y + 15), fill=TEAL if contribution else MUTED)
     _text(draw, (62, note_y), _fit(note, 20, 690), 20, TEAL if contribution else MUTED)
+    if reward_details:
+        rows, x, row = [], 44, []
+        for text in reward_details:
+            width = _font(18).getlength(text) + 28
+            if row and x + width > 756:
+                rows.append(row)
+                row, x = [], 44
+            row.append((x, text, width))
+            x += width + 10
+        rows.append(row)
+        extended = Image.new('RGB', (WIDTH, image.height + len(rows) * 46 + 20), BACKGROUND)
+        extended.paste(image, (0, 0))
+        extra_draw = ImageDraw.Draw(extended)
+        extra_draw.rounded_rectangle((24, image.height - 4, 776, extended.height - 20), radius=19, fill='white')
+        for index, row in enumerate(rows):
+            y = image.height + 8 + index * 46
+            for x, text, width in row:
+                fg, bg = ("#A87921", "#FBF4E4") if '核心' in text or text.startswith('钓皇俱乐部') else (TEAL, "#E3F2EB")
+                extra_draw.rounded_rectangle((x, y, x + width, y + 34), radius=17, fill=bg)
+                draw_text(extra_draw, (x + width / 2, y + 17), text, font=_font(18), fill=fg, anchor='mm')
+        image = extended
     return _webp(image)
+
+
+def capture_details(result):
+    lines = []
+    if result.get('material'):
+        material = result['material']
+        lines.append(f"{material['name']} +1（持有 {material['owned']}）")
+    if result.get('parts_gained'):
+        lines.append(f"零件 +{result['parts_gained']}")
+    if result.get('critical'):
+        lines.append('会心')
+    if result.get('research'):
+        lines.append(f"俱乐部研究点 +{result['research']}")
+    if result.get('club_upgrade'):
+        lines.append(f"钓皇俱乐部升至 Lv.{result['club_upgrade']}")
+    return lines
 
 
 def render_list_card(title, lines):

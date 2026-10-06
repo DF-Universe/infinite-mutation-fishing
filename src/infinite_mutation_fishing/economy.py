@@ -64,10 +64,15 @@ def consume_item(player, item_id):
         player["bag"][key] = count - 1
 
 
-def equipped_items(player):
+def equipped_items(player, state=None):
     ensure_inventory(player)
-    return [ITEMS[str(item_id)] for item_id in player["equipment"].values()
-            if str(item_id) in ITEMS and player["bag"].get(str(item_id), 0) > 0]
+    from .progression import equipped_item
+    result = []
+    for slot, item_id in player['equipment'].items():
+        item = ITEMS.get(str(item_id)) if player['bag'].get(str(item_id), 0) > 0 else equipped_item(state, player, item_id)
+        if item and item['type'] == slot:
+            result.append(item)
+    return result
 
 
 def expire_buffs(player, now):
@@ -76,16 +81,23 @@ def expire_buffs(player, now):
                        if (value.get("expires_at", now+1) > now and value.get("uses", 1) > 0)}
 
 
-def fishing_power(player, fever, now, *, include_buffs=True):
+def fishing_power(player, fever, now, *, include_buffs=True, state=None):
     expire_buffs(player, now)
     power = (player["level"] // 5 if fever else player["level"]) + player.get("gear_power", 0)
-    for item in equipped_items(player):
+    from .affixes import effects
+    from .progression import club_effect
+    items = equipped_items(player, state)
+    power += effects(player, items).get("power", 0) + club_effect(state)["power"]
+    for item in items:
         power += item["power"] // 2 if fever and item["type"] == "rod" else item["power"]
     return power + (player["buffs"].get("power", {}).get("amount", 0) if include_buffs else 0)
 
 
-def mutation_power(player):
-    return player.get("mutation_power", 0) + sum(item["mutation_power"] for item in equipped_items(player))
+def mutation_power(player, state=None):
+    from .affixes import effects
+    from .progression import club_effect
+    items = equipped_items(player, state)
+    return player.get("mutation_power", 0) + sum(item["mutation_power"] for item in items) + effects(player, items).get('mutation', 0) + club_effect(state)['mutation']
 
 
 def reward_percent(player, now):
@@ -131,6 +143,9 @@ def draw_items(player, mode, rng):
 def use_item(state, player, identifier, now, *, force=False):
     ensure_inventory(player)
     expire_buffs(player, now)
+    from .progression import club_effect, equip_dynamic, check_equipment_conflicts
+    if str(identifier).upper().startswith(('E', 'P', 'M')) or any(str(identifier) == t['name'] for t in state.get('templates', {}).values()):
+        return equip_dynamic(state, player, identifier)
     item = find_item(identifier)
     key = str(item["id"])
     if player["bag"].get(key, 0) < 1:
@@ -138,6 +153,8 @@ def use_item(state, player, identifier, now, *, force=False):
     if item["type"] in ("rod", "tool"):
         slot = item["type"]
         equipped = player["equipment"][slot] != key
+        if equipped:
+            check_equipment_conflicts(state, player, slot, item)
         player["equipment"][slot] = key if equipped else None
         return {"kind": "equip", "item": deepcopy(item), "equipped": equipped}
     effect = item["effect"]
@@ -159,7 +176,7 @@ def use_item(state, player, identifier, now, *, force=False):
         return {"kind": "feed", "item": deepcopy(item), "feeds": state["feeds"]}
     consume_item(player, key)
     if kind == "power":
-        player["buffs"]["power"] = {"item_id": item["id"], "amount": effect["amount"], "uses": effect["uses"]}
+        player["buffs"]["power"] = {"item_id": item["id"], "amount": effect["amount"], "uses": effect["uses"] + club_effect(state)["uses"]}
     elif kind == "reward":
-        player["buffs"]["reward"] = {"item_id": item["id"], "percent": effect["percent"], "expires_at": now+effect["duration"]}
+        player["buffs"]["reward"] = {"item_id": item["id"], "percent": effect["percent"], "expires_at": now+effect["duration"] + club_effect(state)["minutes"]*60}
     return {"kind": "buff", "item": deepcopy(item)}
