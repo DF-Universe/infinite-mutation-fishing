@@ -8,7 +8,7 @@ from nonebot.log import logger
 from nonebot_plugin_alconna import UniMessage, Target, Other
 
 from .. import GAME_NAME
-from ..capture import SETTINGS, GameError, get_player, refresh, request_spawn, tick, start_fever, spawn_fish, take_fish_left
+from ..capture import SETTINGS, GameError, get_player, refresh, request_spawn, tick, start_fever, spawn_fish, settle_expiry
 from ..repository import get_repository
 from ..shapes import shape_key
 from ..visuals import FishVisual, failure_text, capture_details, render_catch_card, render_spawn_card
@@ -42,31 +42,46 @@ def fever_start_text(minutes):
 
 
 def mark_announced(state, spawn_id):
-    """返回需要准点播报离开的时间（仅普通鱼）。"""
+    """返回这条鱼的到点时间，供准点结算。"""
     spawn = state["spawn"]
     if spawn and spawn["id"] == spawn_id:
         spawn["announced"] = True
-        return None if spawn["fever"] else spawn["expires_at"]
+        return spawn["expires_at"]
     return None
+
+
+async def announce(group_id, result):
+    """播报一次结算：离开、散场、鱼群开始、新鱼，新鱼再挂上自己的到点计时器。"""
+    repository = get_repository()
+    if result["fish_left"]:
+        await push(group_id, UniMessage.text("鱼离开了..."))
+    if result["fever_ended"]:
+        await push(group_id, UniMessage.text("鱼群散去了！"))
+    if result["fever_started"]:
+        await push(group_id, UniMessage.text(fever_start_text(result["fever_started"])))
+    if spawn := result["spawn"]:
+        data = await asyncio.to_thread(render_spawn_card, appearance(spawn["fish"]), fever=spawn["fever"])
+        await push_spawn(group_id, data, spawn["fish"])
+        expires_at = await asyncio.to_thread(repository.transact, group_id, lambda state: mark_announced(state, spawn["spawn_id"]))
+        schedule_leave(group_id, expires_at)
 
 
 _leave_tasks = set()
 
 
 def schedule_leave(group_id, expires_at):
-    """鱼到点就发「鱼离开了」，不等每分钟的定时任务；重启丢失计时器时由 tick 兜底。"""
+    """鱼到点就结算（离开 / 鱼群换鱼 / 鱼群散场），不等每分钟的定时任务；重启丢失计时器时由 tick 兜底。"""
     if expires_at is None:
         return
-    async def announce():
+    async def settle():
         try:
-            left = await asyncio.to_thread(get_repository().transact, group_id,
-                                           lambda state: take_fish_left(state, time.time()))
-            if left:
-                await push(group_id, UniMessage.text("鱼离开了..."))
+            result = await asyncio.to_thread(get_repository().transact, group_id,
+                                             lambda state: settle_expiry(state, time.time(), random.SystemRandom()))
+            await announce(group_id, result)
         except Exception as exc:
-            logger.exception(f"变异捕鱼离开播报失败：{group_id} ({type(exc).__name__})")
+            logger.exception(f"变异捕鱼到点结算失败：{group_id} ({type(exc).__name__})")
     def fire():
-        task = asyncio.ensure_future(announce())
+        task = asyncio.ensure_future(settle())
         _leave_tasks.add(task)
         task.add_done_callback(_leave_tasks.discard)
     asyncio.get_running_loop().call_later(max(0.0, expires_at - time.time()) + 0.5, fire)
@@ -307,18 +322,7 @@ async def scheduled_tick():
             result = await asyncio.to_thread(repository.transact, group_id,
                                              lambda state: tick(state, time.time(), random.SystemRandom()))
             if result:
-                if result["fish_left"]:
-                    await push(group_id, UniMessage.text("鱼离开了..."))
-                if result["fever_ended"]:
-                    await push(group_id, UniMessage.text("鱼群散去了！"))
-                if result["fever_started"]:
-                    await push(group_id, UniMessage.text(fever_start_text(result["fever_started"])))
-                if result["spawn"]:
-                    spawn = result["spawn"]
-                    data = await asyncio.to_thread(render_spawn_card, appearance(spawn["fish"]), fever=spawn["fever"])
-                    await push_spawn(group_id, data, spawn["fish"])
-                    expires_at = await asyncio.to_thread(repository.transact, group_id, lambda state: mark_announced(state, spawn["spawn_id"]))
-                    schedule_leave(group_id, expires_at)
+                await announce(group_id, result)
         except Exception as exc:
             logger.exception(f"变异捕鱼刷新失败：{group_id} ({type(exc).__name__})")
 

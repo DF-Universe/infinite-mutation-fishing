@@ -175,6 +175,7 @@ async def reply(message: UniMessage) -> None:
 
 async def run_as_speaker(action, bot, event):
     """Resolve ids, run a command action, and turn GameError into a reply."""
+    who = None
     try:
         who = speaker(event, strict=True)
         if who is None:
@@ -186,8 +187,9 @@ async def run_as_speaker(action, bot, event):
         finally:
             for var, token in zip((CURRENT_USER, CURRENT_OFFICIAL, CURRENT_MESSAGE), tokens):
                 var.reset(token)
-    except SilentError:
-        return
     except GameError as exc:
+        # 静默只为躲自建 Bot 的风控；千雪是官方 Bot，照常回复
+        if isinstance(exc, SilentError) and not (who and who.official):
+            return
         source = message_id(event)
         await (UniMessage.reply(source) + UniMessage.text(str(exc)) if source else UniMessage.text(str(exc))).send()

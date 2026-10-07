@@ -233,14 +233,18 @@ def spawn_fish(state, now, rng, *, force=False, fish_id=None):
     ttl = SETTINGS["fever_lifetime"] if fever else SETTINGS["normal_lifetime"]
     state["spawn"] = {"id": uuid.uuid4().hex, "fish_id": fish["id"], "fever": fever,
                       "expires_at": min(now+ttl, state["fever_until"]) if fever else now+ttl,
-                      "attempted": [], "contribution_claimed": None, "announced": False}
+                      "attempted": [], "contribution_claimed": None, "announced": False, "created_at": now}
     return {"fish": deepcopy(fish), "fever": fever, "spawn_id": state["spawn"]["id"]}
+
+
+def is_night(now):
+    return 1 <= datetime.fromtimestamp(now, ZoneInfo("Asia/Shanghai")).hour < 8
 
 
 def request_spawn(state, now, rng):
     """A spawn the chat persona granted on a player's request: never at night or over a fish already present."""
     refresh(state, now)
-    if 1 <= datetime.fromtimestamp(now, ZoneInfo("Asia/Shanghai")).hour < 8:
+    if is_night(now):
         raise GameError("夜里鱼群都睡了")
     if state["spawn"]:
         raise GameError("水里已经有鱼了")
@@ -340,6 +344,9 @@ def sign_in(state, user_id, name, now, rng):
             "mutation_progress": 100000 if job_id else fish["progress"]}
 
 
+ANNOUNCE_GRACE = 30
+
+
 def tick(state, now, rng):
     refresh(state, now)
     if now < state["next_tick"]:
@@ -356,8 +363,10 @@ def tick(state, now, rng):
         state["fever_checked_day"] = state["day"]
         if now >= state["fever_until"] and rng.random() < min(1, state["feeds"]/SETTINGS["fever_feed_target"]):
             fever_started = start_fever(state, now, rng)
-    result = None if 1 <= local.hour < 8 else spawn_fish(state, now, rng)
-    if result is None and state["spawn"] and not state["spawn"].get("announced", False):
+    result = None if is_night(now) else spawn_fish(state, now, rng)
+    # 刚生成、卡片还在发送中的鱼不算漏播，否则会和准点计时器各发一张
+    if (result is None and state["spawn"] and not state["spawn"].get("announced", False)
+            and now - state["spawn"].get("created_at", 0) > ANNOUNCE_GRACE):
         current = state["spawn"]
         result = {"fish": deepcopy(state["species"][current["fish_id"]]),
                   "fever": current["fever"], "spawn_id": current["id"]}
@@ -365,10 +374,18 @@ def tick(state, now, rng):
             "fish_left": fish_left}
 
 
-def take_fish_left(state, now):
-    """到点后立即结算离开；与 tick 共用同一个标记，谁先取走谁发消息，不会重复。"""
+def settle_expiry(state, now, rng):
+    """鱼到点时立即结算，不等每分钟的 tick：普通鱼报离开，鱼群期间立刻补上下一条，
+    鱼群到点就散。离开与散场标记都和 tick 共用，谁先取走谁发消息，不会重复。"""
     refresh(state, now)
-    return state.pop("fish_left", False)
+    fish_left = state.pop("fish_left", False)
+    fever_ended = bool(state.get("fever_active")) and now >= state["fever_until"]
+    if fever_ended:
+        state["fever_active"] = False
+    spawn = None
+    if now < state["fever_until"] and not state["spawn"] and not is_night(now):
+        spawn = spawn_fish(state, now, rng, force=True)
+    return {"spawn": spawn, "fever_started": None, "fever_ended": fever_ended, "fish_left": fish_left}
 
 
 def finish_mutation(state, job_id, generated):

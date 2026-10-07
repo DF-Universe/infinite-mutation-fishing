@@ -8,7 +8,7 @@ import pytest
 from infinite_mutation_fishing.errors import SilentError
 from infinite_mutation_fishing.capture import (
     SETTINGS, GameError, add_contribution, catch_fish, contribution_base, apply_command,
-    finish_mutation, get_player, initial_state, refresh, sign_in, spawn_fish, start_fever, take_fish_left, tick,
+    finish_mutation, get_player, initial_state, refresh, sign_in, spawn_fish, start_fever, settle_expiry, tick,
 )
 
 NOW = datetime(2026, 9, 28, 12, tzinfo=ZoneInfo("Asia/Shanghai")).timestamp()
@@ -350,10 +350,43 @@ def test_leave_is_taken_once_and_explains_the_gap():
     state = ready()
     state["spawn"]["announced"] = True
     expiry = state["spawn"]["expires_at"]
-    assert take_fish_left(state, expiry - 1) is False
+    assert settle_expiry(state, expiry - 1, Lucky())["fish_left"] is False
     with pytest.raises(GameError, match="刚刚游走"):
         catch_fish(state, "a", "A", expiry + 1, Lucky())
-    assert take_fish_left(state, expiry + 1) is True
-    assert take_fish_left(state, expiry + 2) is False
+    settled = settle_expiry(state, expiry + 1, Lucky())
+    assert settled["fish_left"] is True and settled["spawn"] is None
+    assert settle_expiry(state, expiry + 2, Lucky())["fish_left"] is False
     with pytest.raises(GameError, match="当前没有鱼"):
         catch_fish(state, "a", "A", expiry + 2, Lucky())
+
+
+def test_fever_fish_is_replaced_the_moment_it_expires():
+    state = ready(fever=True)
+    state["spawn"]["announced"] = True
+    first = state["spawn"]["id"]
+    expiry = state["spawn"]["expires_at"]
+    assert settle_expiry(state, expiry - 1, Lucky())["spawn"] is None
+    settled = settle_expiry(state, expiry, Lucky())
+    assert settled["fish_left"] is False and settled["fever_ended"] is False
+    assert settled["spawn"]["fever"] and state["spawn"]["id"] != first
+    assert settle_expiry(state, expiry, Lucky())["spawn"] is None
+
+
+def test_fever_disperses_on_time_and_only_once():
+    state = ready(fever=True)
+    end = state["fever_until"]
+    state["spawn"]["expires_at"] = end
+    settled = settle_expiry(state, end, Lucky())
+    assert settled["fever_ended"] is True and settled["spawn"] is None and state["spawn"] is None
+    assert settle_expiry(state, end + 1, Lucky())["fever_ended"] is False
+    assert tick(state, end + 30, Lucky())["fever_ended"] is False
+
+
+def test_tick_does_not_repeat_a_card_that_is_still_being_sent():
+    state = initial_state()
+    state["next_tick"] = NOW + 3600
+    spawn_fish(state, NOW, Lucky(), force=True)
+    state["next_tick"] = 0
+    assert tick(state, NOW + 5, Lucky())["spawn"] is None
+    state["next_tick"] = 0
+    assert tick(state, NOW + 60, Lucky())["spawn"]["spawn_id"] == state["spawn"]["id"]

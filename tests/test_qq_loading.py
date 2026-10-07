@@ -159,6 +159,34 @@ assert [str(message) for message in sent[before:]] == ["鱼离开了..."]
 assert leave_state["spawn"] is None and "fish_left" not in leave_state
 runtime.schedule_leave("123", None)
 
+from infinite_mutation_fishing.capture import start_fever
+leave_state = initial_state()
+start_fever(leave_state, clock.time(), __import__("random").Random(1))
+spawn = spawn_fish(leave_state, clock.time(), __import__("random").Random(1), force=True)
+assert runtime.mark_announced(leave_state, spawn["spawn_id"]) == leave_state["spawn"]["expires_at"]
+leave_state["spawn"]["expires_at"] = clock.time()
+runtime.render_spawn_card = lambda *args, **kwargs: b"card"
+pushed = []
+async def fake_push(group_id, message, **kwargs):
+    pushed.append(message)
+runtime.push = fake_push
+async def wait_for_rotation():
+    runtime.schedule_leave("123", clock.time())
+    await asyncio.sleep(1.2)
+asyncio.run(wait_for_rotation())
+assert len(pushed) == 1 and pushed[0][0].raw == b"card"
+assert leave_state["spawn"]["id"] != spawn["spawn_id"] and leave_state["spawn"]["announced"]
+
+from infinite_mutation_fishing.errors import SilentError
+bound["OPEN123"] = 123
+async def silent(bot, event, group_id):
+    raise SilentError("你已经尝试过这轮的鱼了")
+before = len(sent)
+asyncio.run(chat.run_as_speaker(silent, SimpleNamespace(), SimpleNamespace(group_id=456, message_id=2, get_user_id=lambda: "7")))
+assert len(sent) == before
+asyncio.run(chat.run_as_speaker(silent, SimpleNamespace(), SimpleNamespace(group_openid="OPEN123", id="m3", get_user_id=lambda: "MEMBER7")))
+assert str(sent[-1][-1]) == "你已经尝试过这轮的鱼了"
+
 '''
     env = {**os.environ, "PYTHONPATH": os.pathsep.join([str(package_src), str(tmp_path)])}
     result = subprocess.run(
