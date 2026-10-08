@@ -123,6 +123,15 @@ def test_analysis_sources_lock_and_one_material():
     with pytest.raises(GameError): execute(state,player,'analyze','M0001 M0001:5')
 
 
+def test_club_needs_no_ssr_materials():
+    state,player=prepared(4)
+    with pytest.raises(GameError): execute(state,player,'donate','材料 M0001 5')
+    need=CLUB[5]
+    state['club'].update(research=need['research'], coins=need['coins'], parts=need['parts']-1)
+    execute(state,player,'donate','零件 1')
+    assert state['club']['level']==5 and player['materials']['ssr0']==100
+
+
 def test_donation_clamps_and_recycle_preserves_equipment():
     state,player=prepared(0)
     execute(state,player,'donate','金币 1000000')

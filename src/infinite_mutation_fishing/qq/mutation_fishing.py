@@ -217,3 +217,22 @@ recycle = register_progression('回收','recycle')
 donate = register_progression('捐献','donate')
 analyze = register_progression('解析','analyze')
 lock = register_progression('锁定','lock')
+
+
+def register_guild(command, operation):
+    matcher = on_command(command, rule=enabled_in_group, force_whitespace=True)
+    @matcher.handle()
+    async def handler(bot: Bot, event: Event, args: Message = CommandArg()):
+        from .runtime import handle_guild
+        text = args.extract_plain_text().strip()
+        async def action(bot, event, group_id):
+            await handle_guild(bot, event, group_id, operation, text)
+        await run_action(action, bot, event)
+    return matcher
+
+
+guild = register_guild('钓公师团', 'guild')
+tome = register_guild('钓公秘籍', 'tome')
+exam = register_guild('师团考核', 'exam')
+study = register_guild('研习', 'study')
+bait = register_guild('合成鱼饵', 'bait')

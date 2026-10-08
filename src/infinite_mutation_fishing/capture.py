@@ -19,6 +19,7 @@ from .economy import (
 )
 
 from .affixes import effects, rewards
+from .guild import mutation_weights as guild_mutation_weights, record_ssr, reveal_view, promotion_view, take_exam, study, craft_bait
 from .progression import upgrade_progression, ensure_player as ensure_progression_player, ensure_template, add_research, progression_command
 
 DATA = Path(__file__).resolve().parents[2] / "data"
@@ -154,8 +155,7 @@ def add_contribution(state, spawn, species, user_id, player, now, rng, multiplie
             "id": job_id, "parent_id": species["id"], "round": species["round"],
             "contributors": winners, "contributions": dict(contributors),
             "names": [state["players"][uid]["name"] for uid in winners],
-            "rarity": rng.choices(list(SETTINGS["rarities"]),
-                                  weights=[v["mutation_weight"] for v in SETTINGS["rarities"].values()])[0],
+            "rarity": rng.choices(list(SETTINGS["rarities"]), weights=child_rarity_weights(state))[0],
             "created_at": now, "status": "pending", "retry_at": now, "attempts": 0,
         }
         job = state["jobs"][job_id]
@@ -165,6 +165,16 @@ def add_contribution(state, spawn, species, user_id, player, now, rng, multiplie
         species.update(progress=0, contributions={}, pending=job_id)
         note = "变异已触发！子代生成任务已保存"
     return actual, note, job_id
+
+
+def child_rarity_weights(state):
+    weights = guild_mutation_weights(state) or {k: v["mutation_weight"] for k, v in SETTINGS["rarities"].items()}
+    return [weights[rarity] for rarity in SETTINGS["rarities"]]
+
+
+def guild_news(state, reached):
+    """Cards to push to the group for newly reached group ratings: the reveal at 1, a notice after."""
+    return [reveal_view(state) if level == 1 else promotion_view(state, level) for level in reached]
 
 
 def start_fever(state, now, rng):
@@ -274,6 +284,13 @@ def progression_rewards(state, player, user_id, fish, success, parts, now):
     return {'material':material, 'parts_gained':parts, 'research':research, 'club_upgrade':upgraded}
 
 
+def guild_extra(state, reached):
+    """reached is None when nothing was counted, else the group ratings this count unlocked."""
+    if reached is None:
+        return {}
+    return {"guild_counted": state["guild"]["level"] > 0, "guild_news": guild_news(state, reached)}
+
+
 def catch_fish(state, user_id, name, now, rng):
     """Every fish stays for its whole lifetime; each player gets one attempt per spawn."""
     refresh(state, now)
@@ -298,6 +315,8 @@ def catch_fish(state, user_id, name, now, rng):
         player["caught"][fish["id"]] = player["caught"].get(fish["id"], 0) + 1
         contribution, note, job_id = add_contribution(state, spawn, fish, user_id, player, now, rng, snapshot=snapshot)
     extra = progression_rewards(state, player, user_id, fish, success, parts, now)
+    reached = record_ssr(state, spawn) if success and fish["rarity"] == "SSR" else None
+    extra |= guild_extra(state, reached)
     return {**extra, "critical":critical, "fish": deepcopy(fish), "player_name": player["name"], "success": success,
             "coins": coins, "experience": experience, "contribution": contribution,
             "note": note, "level": player["level"],
@@ -337,6 +356,7 @@ def sign_in(state, user_id, name, now, rng):
     if contribution and not job_id:
         note = f"签到贡献 ×{mutation_multiplier} · 已计入变异进度"
     extra = progression_rewards(state, player, user_id, fish, True, parts, now)
+    extra |= guild_extra(state, record_ssr(state) if fish["rarity"] == "SSR" else None)
     return {**extra, "critical":critical, "fish": deepcopy(fish), "player_name": player["name"], "success": True,
             "coins": coins, "experience": experience, "contribution": contribution, "note": note,
             "level": player["level"], "job_id": job_id, "reward_multiplier": reward_multiplier,
@@ -424,6 +444,12 @@ def apply_command(state, operation, user_id, name, now, rng=None, payload=None):
         return draw_items(player, payload.get("mode", ""), rng)
     if operation == "use":
         return use_item(state, player, payload.get("item", ""), now, force=payload.get("force", False))
+    if operation == "exam":
+        return take_exam(state, player, now, rng)
+    if operation == "study":
+        return study(state, player, payload.get("text", ""))
+    if operation == "bait":
+        return craft_bait(state, player, payload.get("text", ""))
     if operation in {"craft", "enhance", "recycle", "donate", "analyze", "lock"}:
         return progression_command(state, player, user_id, operation, payload.get("text", ""), now)
     raise GameError("未知操作")

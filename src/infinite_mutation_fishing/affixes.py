@@ -93,8 +93,13 @@ def merged_affixes(items):
     return {k: min(v, len(AFFIXES[k]['values'])) for k, v in raw.items() if k in AFFIXES}
 
 
+def tome_item(player):
+    """钓公秘籍 levels as a pseudo item, so they stack with gear like a third piece."""
+    return {'affixes': player.get('guild', {}).get('tome', {})}
+
+
 def effects(player, items):
-    levels = merged_affixes(items)
+    levels = merged_affixes([*items, tome_item(player)])
     result = {k: AFFIXES[k]['values'][v-1] for k, v in levels.items()}
     result['power'] = result.get('power', 0) + min(10, player['level']//20)*result.get('veteran', 0) - 10*levels.get('harvest', 0)
     species_count = sum(n > 0 for n in player.get('caught', {}).values())

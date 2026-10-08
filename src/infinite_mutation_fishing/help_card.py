@@ -105,7 +105,7 @@ def create_help_card():
         draw.rounded_rectangle((x, y, x + step_w, y + step_h), radius=19, fill=tint)
         draw.ellipse((x + 20, y + 20, x + 52, y + 52), fill=color)
         draw_text(draw, (x + 36, y + 36), str(index + 1), font=_font(19, True), fill="white", anchor="mm")
-        _text(draw, (x + 64, y + 22), title, 24, color, True)
+        draw_text(draw, (x + 64, y + 36), title, font=_font(24, True), fill=color, anchor="lm")
         for row, line in enumerate(lines):
             _text(draw, (x + 24, y + 70 + row * 29), line, 19, INK)
     mid_y = grid_top + step_h // 2

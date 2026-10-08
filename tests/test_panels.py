@@ -21,9 +21,9 @@ def test_inventory_pagination_and_equipped_markers():
     first = panels.inventory_page(player, 0)
     last = panels.inventory_page(player, 999)
     assert len(first[0]) == 10 and first[1:3] == (1, 2)
-    assert len(last[0]) == 8 and last[1:3] == (2, 2)
+    assert len(last[0]) == 9 and last[1:3] == (2, 2)
     assert first[3] == [201]
-    assert [item['id'] for item, _ in first[0]] == [1, 2, 3, 4, 5, 6, 7, 8, 9, 101]
+    assert [item['id'] for item, _ in first[0]] == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
     assert panels.inventory_page(get_player(initial_state(), 'b'), 2)[1:3] == (1, 1)
 
 

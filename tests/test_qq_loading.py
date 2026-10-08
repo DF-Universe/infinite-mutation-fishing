@@ -136,6 +136,19 @@ asyncio.run(runtime.show_progression(SimpleNamespace(), event, "123", "club"))
 assert sent[-1][-1].name == "mutation-club.webp"
 for name in ("recipes", "equipment", "materials", "club", "craft", "enhance", "recycle", "donate", "analyze", "lock"):
     assert getattr(module, name) is not None
+for name in ("guild", "tome", "exam", "study", "bait"):
+    assert getattr(module, name) is not None
+EconomyRepository.read = lambda self, group: state
+before = len(sent)
+asyncio.run(runtime.handle_guild(SimpleNamespace(), event, "123", "guild", ""))
+assert len(sent) == before, "钓公师团 must stay silent before the group reveal"
+state["guild"] = {"level": 1, "count": 5}
+asyncio.run(runtime.handle_guild(SimpleNamespace(), event, "123", "guild", ""))
+assert sent[-1][-1].name == "mutation-guild-guild.webp"
+asyncio.run(runtime.handle_guild(SimpleNamespace(), event, "123", "tome", ""))
+assert sent[-1][-1].name == "mutation-guild-tome.webp"
+asyncio.run(runtime.push_guild_news("123", {"guild_news": [{"layout": "reveal", "count": 5, "name": "癸"}]}))
+assert sent[-1][-1].name == "mutation-guild.webp"
 
 import time as clock
 from infinite_mutation_fishing.capture import spawn_fish

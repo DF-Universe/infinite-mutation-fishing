@@ -57,9 +57,25 @@ def _font(size: int, bold: bool = False):
 
 @lru_cache(maxsize=64)
 def _cjk_extent(font):
-    """Ink above / below the baseline for a CJK glyph, the reference every line aligns to."""
-    _, top, _, bottom = font.getbbox("级", anchor="ls")
-    return -top, bottom
+    """Rendered ink above / below the baseline for CJK glyphs, the reference every line aligns to.
+
+    getbbox reports layout boxes rather than ink for this font, so measure the pixels instead.
+    """
+    size = font.size * 3
+    mask = Image.new("L", (size * 3, size * 2))
+    ImageDraw.Draw(mask).text((4, size), "国级", font=font, fill=255, anchor="ls")
+    _, top, _, bottom = mask.getbbox()
+    return size - top, bottom - size
+
+
+def text_mid(y, size, bold=False):
+    """The visual centre line of a line drawn top-anchored at y; dots and chips beside it align here."""
+    above, below = _cjk_extent(_font(size, bold))
+    return y + (above + below) / 2
+
+
+def bullet(draw, x, cy, fill, d=7):
+    draw.ellipse((x, cy - d / 2, x + d, cy + d / 2), fill=fill)
 
 
 def draw_text(draw, position, text, font=None, fill=None, anchor="la", **kwargs):
@@ -230,7 +246,7 @@ def render_catch_card(
             length = max(1, round(712 * float(progress) / 100))
             draw.rounded_rectangle((44, 446, 44 + length, 462), radius=min(8, length / 2), fill=TEAL)
         note_y = 474
-    draw.ellipse((44, note_y + 7, 52, note_y + 15), fill=TEAL if contribution else MUTED)
+    bullet(draw, 44, text_mid(note_y, 20), TEAL if contribution else MUTED, 8)
     _text(draw, (62, note_y), _fit(note, 20, 690), 20, TEAL if contribution else MUTED)
     if reward_details:
         rows, x, row = [], 44, []
@@ -269,6 +285,8 @@ def capture_details(result):
         lines.append(f"俱乐部研究点 +{result['research']}")
     if result.get('club_upgrade'):
         lines.append(f"钓皇俱乐部升至 Lv.{result['club_upgrade']}")
+    if result.get('guild_counted'):
+        lines.append('钓公师团记录 +1')
     return lines
 
 

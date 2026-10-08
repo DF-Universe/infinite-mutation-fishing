@@ -125,6 +125,7 @@ async def handle_catch(bot, event, group_id):
                                   success_rate=result["success_rate"],
                                   mutation_progress=Decimal(result["mutation_progress"])/1000, reward_details=capture_details(result))
     await reply(image_message(data, "mutation-catch.webp"))
+    await push_guild_news(group_id, result)
 
 
 async def show_help(bot, event, group_id, page=""):
@@ -186,6 +187,42 @@ async def handle_sign_in(bot, event, group_id):
                                   mutation_progress=Decimal(result["mutation_progress"])/1000,
                                   title="签到成功", eyebrow=f"金币经验 ×{result['reward_multiplier']}", reward_details=capture_details(result))
     await reply(image_message(data, "mutation-signin.webp"))
+    await push_guild_news(group_id, result)
+
+
+async def push_guild_news(group_id, result):
+    """钓公师团现身 / 本群评级提升：发到群里，不回复触发者。"""
+    from ..guild_panels import render_guild_card
+    for view in result.get("guild_news", []):
+        data = await asyncio.to_thread(render_guild_card, view)
+        await push(group_id, UniMessage.image(raw=data, mimetype="image/webp", name="mutation-guild.webp"))
+
+
+async def handle_guild(bot, event, group_id, operation, text):
+    """钓公师团的查看与操作。本群未现身前一律不回应，不剧透。"""
+    from ..guild import guild_view, tome_view
+    from ..guild_panels import render_guild_card
+    repository = get_repository()
+    if not (await asyncio.to_thread(repository.read, group_id)).get("guild", {}).get("level"):
+        return
+    user_id = current_user(event)
+    if operation in ("guild", "tome"):
+        now = time.time()
+        def transition(state):
+            refresh(state, now)
+            player = get_player(state, user_id)
+            return guild_view(state, player, now) if operation == "guild" else tome_view(state, player)
+        view = await asyncio.to_thread(repository.transact, group_id, transition)
+    else:
+        name = await member_name(bot, event, group_id, user_id)
+        message_id = getattr(event, "message_id", None) or getattr(event, "id", None)
+        if message_id is None:
+            raise GameError("无法识别消息编号，请重新发送指令")
+        view = await asyncio.to_thread(repository.command, group_id, str(message_id), operation, user_id, name,
+                                       payload={"text": text})
+        if view.get("duplicate"):
+            return
+    await reply(image_message(await asyncio.to_thread(render_guild_card, view), f"mutation-guild-{operation}.webp"))
 
 
 async def handle_economy(bot, event, group_id, operation, payload):

@@ -13,7 +13,7 @@ from .affix_badges import affix_chips
 from .capture import SETTINGS, average_power, spawn_odds
 from .shapes import LABELS, normalize, shape_key
 from .economy import feed_status, ITEMS, expire_buffs, fishing_power, mutation_power, equipped_items
-from .visuals import draw_text, BACKGROUND, INK, MUTED, TEAL, WIDTH, FishVisual, _card, _fish_icon, _fish_name, _fit, _font, _rarity, _text, _webp
+from .visuals import draw_text, text_mid, BACKGROUND, INK, MUTED, TEAL, WIDTH, FishVisual, _card, _fish_icon, _fish_name, _fit, _font, _rarity, _text, _webp
 
 MARGIN = 28
 INNER = WIDTH - MARGIN * 2
@@ -134,11 +134,12 @@ def _item_tile(draw, x, y, w, h, item, count, tag=None, fill="white"):
     draw.rounded_rectangle((x, y, x + w, y + h), radius=19, fill=fill)
     _badge(draw, (x + 16, y + 18, x + 68, y + 70), item, None if fill == "white" else "white")
     text_x, text_w = x + 82, w - 98
-    tag_w = _pill(draw, x + w - 14, y + 16, *tag) + 8 if tag else 0
+    mid = text_mid(y + 16, 19)
+    tag_w = _pill(draw, x + w - 14, mid - 12.5, *tag) + 8 if tag else 0
     name = _fit(item["name"], 19, text_w - tag_w - 40)
     _text(draw, (text_x, y + 16), name, 19)
     if count > 1:
-        _text(draw, (text_x + _font(19).getlength(name) + 6, y + 19), f"×{count}", 16, MUTED)
+        draw_text(draw, (text_x + _font(19).getlength(name) + 6, mid), f"×{count}", font=_font(16), fill=MUTED, anchor="lm")
     line_y = y + 44
     if item["type"] in ("rod", "tool"):
         _text(draw, (text_x, line_y), _fit(_stats_text(item), 14, text_w), 14, rarity_colors(item["rarity"])[0])
@@ -319,7 +320,8 @@ def render_inventory_panel(player, page=1, state=None):
 def render_character_panel(player, state, user_id, now, avatar=None):
     from .progression_panels import create_loadout_card
     base = create_character_panel(character_view(player, state, user_id, now), avatar)
-    tail = create_loadout_card(equipped_items(player, state), fishing_power(player, False, now, state=state),
+    from .affixes import tome_item
+    tail = create_loadout_card([*equipped_items(player, state), tome_item(player)], fishing_power(player, False, now, state=state),
                                fishing_power(player, True, now, state=state), state.get('club', {}).get('level', 0))
     image = Image.new('RGB', (WIDTH, base.height+tail.height), BACKGROUND)
     image.paste(base, (0, 0))

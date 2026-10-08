@@ -9,7 +9,7 @@ from .affix_badges import FAMILY_COLORS, FAMILY_NAMES, affix_chip, affix_chips
 from .affixes import AFFIXES, FAMILIES, affix_view, merged_affixes
 from .panels import GAP, GOLD, GOLD_TINT, INNER, MARGIN, SOFT, TRACK, wrap
 from .progression import club_effects
-from .visuals import draw_text, INK, MUTED, TEAL, WIDTH, _card, _fish_icon, _fit, _font, _text, _webp
+from .visuals import bullet, draw_text, text_mid, INK, MUTED, TEAL, WIDTH, _card, _fish_icon, _fit, _font, _text, _webp
 
 TEAL_TINT = "#E3F2EB"
 BLUE, BLUE_TINT = "#427AB0", "#EAF2FB"
@@ -128,9 +128,10 @@ def _equipment_card(image, draw, y, entry):
         if entry['equipped']:
             right -= _chip(draw, right, top + 24, '已装备', TEAL, TEAL_TINT, 16, anchor='right') + 8
     _text(draw, (x, top + 26), _fit(entry['name'], 25, right - x - 8), 25)
-    w = _chip(draw, x, top + 70, entry['slot'], INK, SOFT, 15)
-    _text(draw, (x + w + 16, top + 72), f"渔力 {entry['power']}", 19, TEAL)
-    _text(draw, (x + w + 16 + _font(19).getlength(f"渔力 {entry['power']}") + 22, top + 72), f"变异力 {entry['mutation_power']}", 19, PURPLE)
+    w = _chip(draw, x, top + 70, entry['slot'], INK, SOFT, 15, 30)
+    power = f"渔力 {entry['power']}"
+    draw_text(draw, (x + w + 16, top + 85), power, font=_font(19), fill=TEAL, anchor='lm')
+    draw_text(draw, (x + w + 38 + _font(19).getlength(power), top + 85), f"变异力 {entry['mutation_power']}", font=_font(19), fill=PURPLE, anchor='lm')
     _text(draw, (x, top + 112), entry['code'], 16, MUTED)
     y = top + 24 + 118 + 18
     draw.line((LEFT, y - 8, RIGHT, y - 8), fill=SOFT, width=2)
@@ -140,11 +141,11 @@ def _equipment_card(image, draw, y, entry):
     text, badge = _cost_line(entry)
     badge_w = 0
     if badge:
-        badge_w = _chip(draw, RIGHT - 8, y + 12, badge[0], badge[1], badge[2], 15, anchor='right')
+        badge_w = _chip(draw, RIGHT - 8, y + 12, badge[0], badge[1], badge[2], 15, 28, anchor='right')
     owned = f"持有核心 {entry['owned']}"
     owned_x = RIGHT - 8 - badge_w - (16 if badge else 0)
     draw_text(draw, (owned_x, y + 26), owned, font=_font(16), fill=MUTED, anchor='rm')
-    _text(draw, (LEFT + 12, y + 15), _fit(text, 18, owned_x - LEFT - 40 - _font(16).getlength(owned)), 18, INK)
+    draw_text(draw, (LEFT + 12, y + 26), _fit(text, 18, owned_x - LEFT - 40 - _font(16).getlength(owned)), font=_font(18), fill=INK, anchor='lm')
     return top + height
 
 
@@ -278,7 +279,7 @@ def create_action_card(view):
         ty += 36
     ty += 14
     for line in body:
-        draw.ellipse((LEFT + 2, ty + 9, LEFT + 9, ty + 16), fill=TEAL)
+        bullet(draw, LEFT + 2, text_mid(ty, 18), TEAL)
         _text(draw, (LEFT + 22, ty), line, 18, INK)
         ty += 30
     if affixes:
@@ -352,7 +353,7 @@ RULES = [
 COMMANDS = [
     ('装备', [('配方 [P编号]', '全部配方或单件详情'), ('制造 P编号', '制造装备'), ('强化 E编号', '强化一级'),
               ('使用 E编号', '装备或卸下'), ('装备 / 材料', '已有装备与核心库存')]),
-    ('俱乐部与资源', [('钓皇俱乐部', '等级、全群效果、建设进度'), ('捐献 金币 数量', '也可捐献零件、材料'),
+    ('俱乐部与资源', [('钓皇俱乐部', '等级、全群效果、建设进度'), ('捐献 金币 数量', '也可捐献零件'),
                  ('回收 编号 数量', '抽卡工具换零件'), ('解析 M编号', '定向换取一份核心'), ('锁定 编号', '保护物品不被消耗')]),
 ]
 
@@ -380,7 +381,7 @@ def create_expansion_help():
         draw.rounded_rectangle((x, y + 62, x + step_w, y + 152), radius=18, fill=bg)
         draw.ellipse((x + 14, y + 76, x + 42, y + 104), fill=fg)
         draw_text(draw, (x + 28, y + 90), str(index + 1), font=_font(16), fill='white', anchor='mm')
-        _text(draw, (x + 50, y + 78), title, 19, fg)
+        draw_text(draw, (x + 50, y + 90), title, font=_font(19), fill=fg, anchor='lm')
         for row, line in enumerate(wrap(text, 16, step_w - 28, 1)):
             _text(draw, (x + 16, y + 116 + row * 21), line, 16, INK)
         if index < 3:
@@ -394,7 +395,7 @@ def create_expansion_help():
     _heading(draw, LEFT, y + 20, 'SSR 装备')
     ry = y + 64
     for lines in rules:
-        draw.ellipse((LEFT + 2, ry + 9, LEFT + 9, ry + 16), fill=TEAL)
+        bullet(draw, LEFT + 2, text_mid(ry, 18), TEAL)
         for row, line in enumerate(lines):
             _text(draw, (LEFT + 22, ry + row * 28), line, 18, INK)
         ry += len(lines) * 28 + 10
@@ -408,7 +409,7 @@ def create_expansion_help():
     ry = y + 64
     for family, keys in families:
         fg, bg = FAMILY_COLORS[family]
-        _text(draw, (LEFT, ry + 6), FAMILY_NAMES[family], 17, fg)
+        draw_text(draw, (LEFT, ry + 16), FAMILY_NAMES[family], font=_font(17), fill=fg, anchor='lm')
         x = LEFT + 56
         for key in keys:
             x += _chip(draw, x, ry, AFFIXES[key]['name'], fg, bg, 16, 32) + 8
@@ -422,7 +423,7 @@ def create_expansion_help():
     height = 64 + 50 + len(unlocks) * 34 + 16
     _box(draw, y, y + height)
     _heading(draw, LEFT, y + 20, '钓皇俱乐部', '效果全群共享')
-    for row, line in enumerate(wrap('群成员共同建设：研究点由捕鱼、签到自动积累，金币、零件与核心通过「捐献」投入，各项达标后自动升级。', 16, INNER - 48, 2)):
+    for row, line in enumerate(wrap('群成员共同建设：研究点由捕鱼、签到自动积累，金币与零件通过「捐献」投入，各项达标后自动升级。', 16, INNER - 48, 2)):
         _text(draw, (LEFT, y + 58 + row * 24), line, 16, MUTED)
     ry = y + 114
     font = _font(17)

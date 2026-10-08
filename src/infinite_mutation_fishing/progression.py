@@ -92,7 +92,7 @@ def maybe_upgrade_club(state):
     if club['level'] >= 10:
         return None
     need = CLUB[club['level']+1]
-    if all(club[k] >= need[k] for k in ('research', 'coins', 'parts')) and sum(club['materials'].values()) >= need['materials']:
+    if all(club[k] >= need[k] for k in ('research', 'coins', 'parts')):
         club.update(level=need['level'], research=0, coins=0, parts=0, materials={})
         return need['level']
     return None
@@ -269,19 +269,8 @@ def plan_action(state, player, operation, args, now):
                 raise GameError('个人资源不足')
             target.update(resource=resource, count=count)
             lines = [f"捐献{words[0]} {count:,}", f"计入钓皇俱乐部 Lv.{club['level']+1} 建设"]
-        elif len(words) == 3 and words[0] in ('SSR材料', '材料'):
-            template = resolve_template(state, words[1])
-            fid = template['species_id']
-            if template['material_id'] in player['locked']:
-                raise GameError('该材料已锁定')
-            count = min(_positive(words[2]), need['materials']-sum(club['materials'].values()))
-            if count <= 0:
-                raise GameError('本阶段不需要更多 SSR 材料')
-            _spend_check(player, materials={fid: count})
-            target.update(resource='materials', species_id=fid, count=count)
-            lines = [f"捐献 {template['material_name']} ×{count}", f"计入钓皇俱乐部 Lv.{club['level']+1} 建设"]
         else:
-            raise GameError('格式：捐献 金币/零件 数量；捐献 SSR材料 M编号 数量')
+            raise GameError('格式：捐献 金币/零件 数量')
     elif operation == 'analyze':
         if not words:
             raise GameError('格式：解析 目标M编号 [来源M编号:数量 ...]')
@@ -358,13 +347,8 @@ def _apply(state, player, user_id, action, lines, title):
         key, count = action['resource'], action['count']
         record = state['club']['contributors'].setdefault(str(user_id), {})
         record[key] = record.get(key, 0)+count
-        if key == 'materials':
-            fid = action['species_id']
-            player['materials'][fid] -= count
-            state['club']['materials'][fid] = state['club']['materials'].get(fid, 0)+count
-        else:
-            player[key] -= count
-            state['club'][key] += count
+        player[key] -= count
+        state['club'][key] += count
     upgraded = maybe_upgrade_club(state)
     lines = list(lines)
     if upgraded:
@@ -402,7 +386,7 @@ def progression_command(state, player, user_id, operation, text, now):
             player['locked'].append(key)
         else:
             player['locked'].remove(key)
-        return {'kind':'progression', 'title':'物品保护', 'lines':[f"{key} {'已锁定' if enabled else '已解除锁定'}", '锁定的物品不会被回收、捐献或解析；再次发送「锁定 编号」切换']}
+        return {'kind':'progression', 'title':'物品保护', 'lines':[f"{key} {'已锁定' if enabled else '已解除锁定'}", '锁定的物品不会被回收或解析；再次发送「锁定 编号」切换']}
     player.pop('pending_action', None)
     action, lines = plan_action(state, player, operation, text, now)
     titles = {'craft': '制造完成', 'enhance': '强化完成', 'recycle': '回收完成', 'donate': '捐献完成', 'analyze': '解析完成'}
@@ -450,7 +434,7 @@ def collection_view(state, player, mode, argument, now):
         if level < 10:
             need = CLUB[level+1]
             target = {'level': level+1, 'rows': [('金币', club['coins'], need['coins']), ('零件', club['parts'], need['parts']),
-                      ('SSR 核心', sum(club['materials'].values()), need['materials']), ('研究点', club['research'], need['research'])]}
+                      ('研究点', club['research'], need['research'])]}
         user_id = next((uid for uid, p in state['players'].items() if p is player), '')
         record = club['contributors'].get(str(user_id), {})
         return {'layout': 'club', 'title': '钓皇俱乐部', 'level': level, 'effects': club_effects(level),
@@ -459,7 +443,7 @@ def collection_view(state, player, mode, argument, now):
                        ('全群本周', f"{club['weekly_research']} / {CONFIG['group_weekly_research']}"),
                        ('解析额度', str(player.get('analysis', {}).get('balance', 0))),
                        ('累计研究', str(record.get('research', 0)))],
-                'footer': '捐献 金币/零件 数量 · 捐献 材料 M编号 数量'}
+                'footer': '捐献 金币/零件 数量'}
     templates = list(state.get('templates', {}).values())
     if mode == 'recipes' and argument and not argument.isdigit():
         templates = [resolve_template(state, argument)]
@@ -484,7 +468,7 @@ def collection_view(state, player, mode, argument, now):
         view['items'] = [{'fish': _fish_look(state['species'][t['species_id']]), 'code': t['material_id'], 'name': t['material_name'],
                           'count': player['materials'][t['species_id']], 'locked': t['material_id'] in player['locked'],
                           'use': t['name']} for t in shown]
-        view['footer'] = '锁定 M编号 · 解析 M编号 · 捐献 材料 M编号 数量'
+        view['footer'] = '锁定 M编号 · 解析 M编号'
     else:
         view['items'] = [_equipment_entry(state, player, t, mode) for t in shown]
         view['footer'] = '制造 P编号 · 强化 E编号 · 使用 E编号 · 捕鱼帮助 2'

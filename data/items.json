@@ -137,6 +137,23 @@
     }
   },
   {
+    "id": 10,
+    "name": "奇怪的鱼饵",
+    "rarity": 3,
+    "description": "钓公师团配方。使用后，在 60 分钟内【SSR】鱼几乎占满每一次刷新",
+    "price": 0,
+    "type": "consumable",
+    "mutation_power": 0,
+    "buyable": false,
+    "effect": {
+      "kind": "feed",
+      "duration": 3600,
+      "bonuses": {
+        "SSR": 6000
+      }
+    }
+  },
+  {
     "id": 101,
     "name": "机械抓手",
     "rarity": 1,

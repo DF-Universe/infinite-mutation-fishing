@@ -298,7 +298,7 @@
       "coins": 350000,
       "parts": 350,
       "research": 30,
-      "materials": 10,
+      "materials": 0,
       "cap": 10,
       "uses": 2,
       "minutes": 10,
@@ -312,7 +312,7 @@
       "coins": 700000,
       "parts": 550,
       "research": 35,
-      "materials": 20,
+      "materials": 0,
       "cap": 10,
       "uses": 3,
       "minutes": 10,
@@ -326,7 +326,7 @@
       "coins": 1200000,
       "parts": 800,
       "research": 40,
-      "materials": 40,
+      "materials": 0,
       "cap": 15,
       "uses": 3,
       "minutes": 15,
@@ -340,7 +340,7 @@
       "coins": 1800000,
       "parts": 1100,
       "research": 45,
-      "materials": 70,
+      "materials": 0,
       "cap": 15,
       "uses": 3,
       "minutes": 15,
@@ -354,7 +354,7 @@
       "coins": 2500000,
       "parts": 1500,
       "research": 50,
-      "materials": 110,
+      "materials": 0,
       "cap": 15,
       "uses": 4,
       "minutes": 15,
@@ -368,7 +368,7 @@
       "coins": 3200000,
       "parts": 2000,
       "research": 60,
-      "materials": 170,
+      "materials": 0,
       "cap": 20,
       "uses": 4,
       "minutes": 20,
@@ -377,5 +377,385 @@
       "weekly": 3,
       "bank": 9
     }
-  ]
+  ],
+  "guild": {
+    "names": [
+      "癸",
+      "壬",
+      "辛",
+      "庚",
+      "己",
+      "戊",
+      "丁",
+      "丙",
+      "乙",
+      "甲"
+    ],
+    "levels": [
+      {
+        "level": 1,
+        "ssr": 5,
+        "mutation_weights": {
+          "R": 100,
+          "SR": 25,
+          "SSR": 5
+        }
+      },
+      {
+        "level": 2,
+        "ssr": 50,
+        "mutation_weights": {
+          "R": 100,
+          "SR": 25,
+          "SSR": 5
+        }
+      },
+      {
+        "level": 3,
+        "ssr": 130,
+        "mutation_weights": {
+          "R": 95,
+          "SR": 25,
+          "SSR": 6
+        }
+      },
+      {
+        "level": 4,
+        "ssr": 260,
+        "mutation_weights": {
+          "R": 90,
+          "SR": 26,
+          "SSR": 7
+        }
+      },
+      {
+        "level": 5,
+        "ssr": 450,
+        "mutation_weights": {
+          "R": 85,
+          "SR": 26,
+          "SSR": 8
+        }
+      },
+      {
+        "level": 6,
+        "ssr": 700,
+        "mutation_weights": {
+          "R": 80,
+          "SR": 27,
+          "SSR": 9
+        }
+      },
+      {
+        "level": 7,
+        "ssr": 1000,
+        "mutation_weights": {
+          "R": 75,
+          "SR": 28,
+          "SSR": 10
+        }
+      },
+      {
+        "level": 8,
+        "ssr": 1400,
+        "mutation_weights": {
+          "R": 70,
+          "SR": 28,
+          "SSR": 12
+        }
+      },
+      {
+        "level": 9,
+        "ssr": 1900,
+        "mutation_weights": {
+          "R": 65,
+          "SR": 29,
+          "SSR": 13
+        }
+      },
+      {
+        "level": 10,
+        "ssr": 2500,
+        "mutation_weights": {
+          "R": 60,
+          "SR": 30,
+          "SSR": 15
+        }
+      }
+    ],
+    "bait": {
+      "item_id": 10,
+      "materials": 10
+    },
+    "exam_pity": 10,
+    "exams": [
+      {
+        "level": 2,
+        "name": "试鳞·壬",
+        "difficulty": 200,
+        "coins": 3000,
+        "experience": 3000,
+        "materials": 3,
+        "colors": {
+          "body": "#6E7F86",
+          "markings": "#D9C9A3",
+          "fins": "#3F4D53"
+        },
+        "shape": {
+          "body": "spindle",
+          "pattern": "scales",
+          "tail": "fork",
+          "dorsal": "classic"
+        }
+      },
+      {
+        "level": 3,
+        "name": "试鳞·辛",
+        "difficulty": 240,
+        "coins": 5000,
+        "experience": 5000,
+        "materials": 4,
+        "colors": {
+          "body": "#5D7480",
+          "markings": "#E2CF9E",
+          "fins": "#34454D"
+        },
+        "shape": {
+          "body": "slender",
+          "pattern": "stripes",
+          "tail": "fork",
+          "dorsal": "low"
+        }
+      },
+      {
+        "level": 4,
+        "name": "试鳞·庚",
+        "difficulty": 280,
+        "coins": 8000,
+        "experience": 8000,
+        "materials": 5,
+        "colors": {
+          "body": "#4F6B78",
+          "markings": "#E6D29A",
+          "fins": "#2E4049"
+        },
+        "shape": {
+          "body": "diamond",
+          "pattern": "bands",
+          "tail": "crescent",
+          "dorsal": "spiny"
+        }
+      },
+      {
+        "level": 5,
+        "name": "试鳞·己",
+        "difficulty": 320,
+        "coins": 12000,
+        "experience": 12000,
+        "materials": 6,
+        "colors": {
+          "body": "#4B5F74",
+          "markings": "#E9D08F",
+          "fins": "#2B394B"
+        },
+        "shape": {
+          "body": "disc",
+          "pattern": "saddle",
+          "tail": "fan",
+          "dorsal": "sail",
+          "extra": "whiskers"
+        }
+      },
+      {
+        "level": 6,
+        "name": "试鳞·戊",
+        "difficulty": 360,
+        "coins": 16000,
+        "experience": 16000,
+        "materials": 8,
+        "colors": {
+          "body": "#4E5470",
+          "markings": "#ECCD85",
+          "fins": "#2C3048"
+        },
+        "shape": {
+          "body": "humphead",
+          "pattern": "zigzag",
+          "tail": "sword",
+          "dorsal": "spiny",
+          "extra": "horn"
+        }
+      },
+      {
+        "level": 7,
+        "name": "试鳞·丁",
+        "difficulty": 400,
+        "coins": 22000,
+        "experience": 22000,
+        "materials": 10,
+        "colors": {
+          "body": "#58506E",
+          "markings": "#EFCB7C",
+          "fins": "#332B47"
+        },
+        "shape": {
+          "body": "spindle",
+          "pattern": "eyespot",
+          "tail": "veil",
+          "dorsal": "sail",
+          "extra": "crown"
+        }
+      },
+      {
+        "level": 8,
+        "name": "试鳞·丙",
+        "difficulty": 440,
+        "coins": 30000,
+        "experience": 30000,
+        "materials": 12,
+        "colors": {
+          "body": "#634B66",
+          "markings": "#F0C66F",
+          "fins": "#3B2A3F"
+        },
+        "shape": {
+          "body": "slender",
+          "pattern": "spots",
+          "tail": "sword",
+          "dorsal": "low",
+          "extra": "lure"
+        }
+      },
+      {
+        "level": 9,
+        "name": "试鳞·乙",
+        "difficulty": 480,
+        "coins": 40000,
+        "experience": 40000,
+        "materials": 15,
+        "colors": {
+          "body": "#6C4757",
+          "markings": "#F2C063",
+          "fins": "#432633"
+        },
+        "shape": {
+          "body": "diamond",
+          "pattern": "scales",
+          "tail": "veil",
+          "dorsal": "spiny",
+          "extra": "crown"
+        }
+      },
+      {
+        "level": 10,
+        "name": "试鳞·甲",
+        "difficulty": 520,
+        "coins": 50000,
+        "experience": 50000,
+        "materials": 20,
+        "colors": {
+          "body": "#2F3437",
+          "markings": "#E8B954",
+          "fins": "#1A1D1F"
+        },
+        "shape": {
+          "body": "humphead",
+          "pattern": "eyespot",
+          "tail": "veil",
+          "dorsal": "sail",
+          "extra": "crown"
+        }
+      }
+    ],
+    "tome": {
+      "materials": 5,
+      "coins": 2000,
+      "caps": {
+        "gold": [
+          1,
+          1,
+          1,
+          2,
+          2,
+          2,
+          3,
+          3,
+          3,
+          3
+        ],
+        "experience": [
+          1,
+          1,
+          1,
+          2,
+          2,
+          2,
+          3,
+          3,
+          3,
+          3
+        ],
+        "power": [
+          0,
+          1,
+          1,
+          1,
+          2,
+          2,
+          2,
+          2,
+          3,
+          3
+        ],
+        "failure": [
+          0,
+          0,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        "success": [
+          0,
+          0,
+          0,
+          1,
+          1,
+          1,
+          1,
+          2,
+          2,
+          2
+        ],
+        "critical": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          1,
+          1,
+          2,
+          2
+        ],
+        "mutation": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          1,
+          1,
+          2
+        ]
+      }
+    }
+  }
 }
