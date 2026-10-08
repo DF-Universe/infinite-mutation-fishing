@@ -4,6 +4,7 @@ from copy import deepcopy
 from datetime import datetime
 from decimal import Decimal
 import json
+import math
 from pathlib import Path
 import random
 import uuid
@@ -58,6 +59,7 @@ def upgrade_state(state):
             job["level_snapshot_source"] = "legacy_migration"
 
     upgrade_progression(state)
+    ensure_rarity_debt(state)
 
 
 def day_at(now):
@@ -155,7 +157,7 @@ def add_contribution(state, spawn, species, user_id, player, now, rng, multiplie
             "id": job_id, "parent_id": species["id"], "round": species["round"],
             "contributors": winners, "contributions": dict(contributors),
             "names": [state["players"][uid]["name"] for uid in winners],
-            "rarity": rng.choices(list(SETTINGS["rarities"]), weights=child_rarity_weights(state))[0],
+            "rarity": draw_child_rarity(state, rng),
             "created_at": now, "status": "pending", "retry_at": now, "attempts": 0,
         }
         job = state["jobs"][job_id]
@@ -170,6 +172,36 @@ def add_contribution(state, spawn, species, user_id, player, now, rng, multiplie
 def child_rarity_weights(state):
     weights = guild_mutation_weights(state) or {k: v["mutation_weight"] for k, v in SETTINGS["rarities"].items()}
     return [weights[rarity] for rarity in SETTINGS["rarities"]]
+
+
+def child_rarity_probabilities(state):
+    weights = child_rarity_weights(state)
+    return dict(zip(SETTINGS["rarities"], (w / sum(weights) for w in weights)))
+
+
+def ensure_rarity_debt(state):
+    """Per-rarity expected minus actual child count; existing children backfill it, clipped."""
+    if "rarity_debt" not in state:
+        born = [fish["rarity"] for fish in state["species"].values() if fish.get("parent_id")]
+        born += [job["rarity"] for job in state["jobs"].values() if job["status"] != "done"]
+        limit = SETTINGS["rarity_balance"]["backfill_limit"]
+        state["rarity_debt"] = {rarity: max(-limit, min(limit, len(born) * p - born.count(rarity)))
+                                for rarity, p in child_rarity_probabilities(state).items()}
+    for rarity in SETTINGS["rarities"]:
+        state["rarity_debt"].setdefault(rarity, 0)
+    return state["rarity_debt"]
+
+
+def draw_child_rarity(state, rng):
+    """Draw against the group's debt so long-run rarity shares track the configured odds."""
+    debt = ensure_rarity_debt(state)
+    probabilities = child_rarity_probabilities(state)
+    strength = SETTINGS["rarity_balance"]["strength"]
+    weights = [p * math.exp(strength * debt[rarity]) for rarity, p in probabilities.items()]
+    rarity = rng.choices(list(probabilities), weights=weights)[0]
+    for key, p in probabilities.items():
+        debt[key] += p - (key == rarity)
+    return rarity
 
 
 def guild_news(state, reached):

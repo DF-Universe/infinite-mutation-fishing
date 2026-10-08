@@ -3,6 +3,10 @@
   "fever_lifetime": 120,
   "fever_feed_target": 2,
   "feed_cooldown_seconds": 18000,
+  "rarity_balance": {
+    "strength": 1,
+    "backfill_limit": 1
+  },
   "rarities": {
     "R": {
       "difficulty": 0,
