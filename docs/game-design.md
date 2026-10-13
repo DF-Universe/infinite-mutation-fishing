@@ -140,6 +140,6 @@
 
 群捕获、变异及族谱持久化、AI 文案与头像配色、商店、抽卡、装备与消耗品已接入。刷鱼、捕鱼、商店和背包等回复以 LXGW WenKai 字体渲染 WebP；新变异诞生通知当前为文字。商店、个人面板和背包严格沿用旧捕鱼布局与分页交互，仅适配新游戏字段；购买、装备、使用回文字。实现状态和运行参数见 README。
 
-代码归属：`src/infinite-mutation-fishing/` 为独立本地 Git 仓库，Python 包名 `infinite_mutation_fishing`；参照红叶镇物语分别接入 Quart 和 NoneBot。暂不设置远程地址，不伪造 `.gitmodules` 的 URL；远程确定后再补齐可克隆的 submodule 配置。
+代码归属：`services/infinite-mutation-fishing/` 为独立本地 Git 仓库，Python 包名 `infinite_mutation_fishing`；参照红叶镇物语分别接入 Quart 和 NoneBot。远程地址为 `git@github.com:DF-Universe/infinite-mutation-fishing.git`，由宿主 `.gitmodules` 管理。
 
 后续扩展需另行确认，当前不增加装备槽位或区域玩法。

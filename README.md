@@ -14,7 +14,7 @@
 
 ## 宿主接入
 
-- 目录：`src/infinite-mutation-fishing`，包：`infinite_mutation_fishing`。
+- 目录：`services/infinite-mutation-fishing`，包：`infinite_mutation_fishing`。
 - 主仓 `src/quart.py` 将子仓 `src/` 加入包搜索路径并安装 Web Blueprint。
 - 主仓 `bot.py` 加载 `infinite_mutation_fishing.qq.mutation_fishing`。入口末段保持唯一，避免与红叶镇的 `plugin` 注册名冲突。
 - 健康检查：`GET http://localhost:8000/web/api/infinite-mutation-fishing/health`，当前 `stage: capture`。
@@ -124,7 +124,7 @@
 卡片用 `resvg-py` 把 SVG 栅格化，族谱页直接使用接口返回的 SVG，三处共用同一份画法。
 
 ```sh
-venv/bin/python src/infinite-mutation-fishing/scripts/render-fish.py [config.json] [output-dir] [--gallery]
+venv/bin/python services/infinite-mutation-fishing/scripts/render-fish.py [config.json] [output-dir] [--gallery]
 ```
 
 默认读取 `data/ancestor-fish.json`，输出透明背景的 `assets/ancestor/fish.svg` 与配色展示页 `preview.html`；`--gallery` 另出全部部件一览 `gallery.png`。配置中可带 `shape` 字段指定外形。
@@ -134,8 +134,8 @@ venv/bin/python src/infinite-mutation-fishing/scripts/render-fish.py [config.jso
 在主仓目录运行，读取宿主现有 Milky 配置，不需要复制凭据：
 
 ```sh
-venv/bin/python src/infinite-mutation-fishing/scripts/preview-mutation.py 112631066 --output src/infinite-mutation-fishing/previews/demo
-venv/bin/python src/infinite-mutation-fishing/scripts/render-fish.py src/infinite-mutation-fishing/previews/demo/fish.json src/infinite-mutation-fishing/previews/demo
+venv/bin/python services/infinite-mutation-fishing/scripts/preview-mutation.py 112631066 --output services/infinite-mutation-fishing/previews/demo
+venv/bin/python services/infinite-mutation-fishing/scripts/render-fish.py services/infinite-mutation-fishing/previews/demo/fish.json services/infinite-mutation-fishing/previews/demo
 ```
 
 默认随机抽两位非当前机器人成员；`--users <QQ1> <QQ2>` 可复现选定贡献者的顺序，`--parent <fish.json>` 可改用其他亲代。群名片为空时回退昵称并标记来源。头像及身份快照只保存在已忽略的 `previews/`，不写游戏状态，不发消息。
@@ -171,14 +171,14 @@ message = UniMessage.image(raw=data, mimetype="image/webp", name="fish-spawn.web
 
 以上仅构造消息，实际发送由游戏指令决定。当前已接入刷鱼定时任务和捕获结算；`render_spawn_card(..., fever=True)` 显示多人鱼群，默认普通鱼；`render_catch_card(..., success=False)` 展示失败与参与经验。
 
-运行 `venv/bin/python src/infinite-mutation-fishing/scripts/preview-cards.py` 生成刷鱼、捕鱼、0% 贡献、商店、背包、面板和抽卡的 WebP 样例，以及 50 次重复绘制的耗时报告，输出目录为子仓 `previews/cards/`。耗时包含绘图及编码，不包含 QQ 上传发送；不同机器的结果会变化。
+运行 `venv/bin/python services/infinite-mutation-fishing/scripts/preview-cards.py` 生成刷鱼、捕鱼、0% 贡献、商店、背包、面板和抽卡的 WebP 样例，以及 50 次重复绘制的耗时报告，输出目录为子仓 `previews/cards/`。耗时包含绘图及编码，不包含 QQ 上传发送；不同机器的结果会变化。
 
 ## 自动化检查
 
 在主仓目录运行：
 
 ```sh
-venv/bin/python -m pytest src/infinite-mutation-fishing/tests
+venv/bin/python -m pytest services/infinite-mutation-fishing/tests
 ```
 
 也可在子仓内使用宿主虚拟环境运行：

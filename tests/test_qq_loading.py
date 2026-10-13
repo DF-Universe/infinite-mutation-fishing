@@ -173,6 +173,8 @@ assert leave_state["spawn"] is None and "fish_left" not in leave_state
 runtime.schedule_leave("123", None)
 
 from infinite_mutation_fishing.capture import start_fever
+from infinite_mutation_fishing import capture
+capture.is_night = lambda now: False
 leave_state = initial_state()
 start_fever(leave_state, clock.time(), __import__("random").Random(1))
 spawn = spawn_fish(leave_state, clock.time(), __import__("random").Random(1), force=True)

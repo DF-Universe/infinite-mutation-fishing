@@ -47,6 +47,7 @@ def _font(size: int, bold: bool = False):
     paths = [custom] if custom else []
     paths += [
         Path(__file__).resolve().parents[2] / "assets/fonts/LXGWWenKai-Regular.ttf",
+        Path(__file__).resolve().parents[4] / "src/static/poke/LXGWWenKai-Regular.ttf",
         Path(__file__).resolve().parents[3] / "static/poke/LXGWWenKai-Regular.ttf",
     ]
     for path in paths:
